@@ -1,182 +1,227 @@
 package com.fitlog.app.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.fitlog.app.data.AppData
 import com.fitlog.app.domain.Dates
+import com.fitlog.app.domain.pretty
 import com.fitlog.app.domain.targetsOf
-import com.fitlog.app.domain.totalsOf
-import com.fitlog.app.ui.components.EmptyState
-import com.fitlog.app.ui.components.FitCard
-import com.fitlog.app.ui.components.FitTextField
-import com.fitlog.app.ui.components.PrimaryButton
-import com.fitlog.app.ui.components.SectionTitle
-import com.fitlog.app.ui.components.WeekBarChart
+import com.fitlog.app.ui.components.DaySummaryCard
+import com.fitlog.app.ui.components.EmptyHint
+import com.fitlog.app.ui.components.HistoryCalendarCard
+import com.fitlog.app.ui.components.IosGroupFooter
+import com.fitlog.app.ui.components.IosSectionHeader
+import com.fitlog.app.ui.components.PrimaryCapsule
 import com.fitlog.app.ui.components.WeightLineChart
-import com.fitlog.app.ui.theme.FitTheme
-import kotlin.math.abs
+import com.kyant.capsule.ContinuousRoundedRectangle
+import io.github.neoruaa.glasmio.core.GlassColors
+import io.github.neoruaa.glasmio.core.GlasmioTheme
+import io.github.neoruaa.glasmio.core.IosTypography
+import io.github.neoruaa.glasmio.scaffold.GlasmioPinnedListPage
+import java.time.LocalDate
+import java.time.YearMonth
 
+/**
+ * 「统计」：月历 + 选中日期的营养详情 + 体重趋势。
+ *
+ * 原来这里只能看最近 7 天，现在改成可以一直往回翻的月历，
+ * 点哪天就看那天吃了多少、三大宏量怎么样。
+ */
 @Composable
 fun StatsScreen(
     data: AppData,
+    listState: LazyListState,
+    bottomPadding: Dp,
     onAddWeight: (Double) -> Unit,
-    modifier: Modifier = Modifier
+    onInvalidWeight: () -> Unit,
 ) {
-    val c = FitTheme.colors
+    val colors = GlasmioTheme.colors
     val targets = targetsOf(data.profile)
 
-    val days = (6 downTo 0).map { Dates.shift(Dates.today(), -it.toLong()) }
-    val values = days.map { totalsOf(data.logs[it].orEmpty()).kcal }
-    val labels = days.map { d ->
-        "日一二三四五六"[Dates.parse(d).dayOfWeek.value % 7].toString()
-    }
-
-    val recorded = values.count { it > 0 }
-    val avg = if (recorded == 0) 0 else values.sum() / recorded
-    val hit = values.count { it > 0 && abs(it - targets.kcal) <= targets.kcal * 0.1 }
+    val today = LocalDate.parse(Dates.today())
+    val currentMonth = YearMonth.from(today)
+    var monthKey by rememberSaveable { mutableStateOf(currentMonth.toString()) }
+    var selectedKey by rememberSaveable { mutableStateOf(today.toString()) }
+    val month = YearMonth.parse(monthKey)
+    val selected = LocalDate.parse(selectedKey)
 
     val weights = data.weights.sortedBy { it.date }.takeLast(30)
-    var weightInput by remember { mutableStateOf("") }
+    var weightInput by rememberSaveable { mutableStateOf("") }
 
-    LazyColumn(
-        modifier = modifier.fillMaxWidth(),
-        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 118.dp)
+    GlasmioPinnedListPage(
+        title = "统计",
+        subtitle = "翻日查看每天的营养记录",
+        listState = listState,
+        bottomPadding = bottomPadding,
+        verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        item {
-            Column(Modifier.padding(bottom = 16.dp)) {
-                Text("统计", color = c.text, fontSize = 27.sp, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(3.dp))
-                Text("最近 7 天的摄入与体重", color = c.text3, fontSize = 12.sp)
-            }
+        item(key = "calendar") {
+            HistoryCalendarCard(
+                month = month,
+                selected = selected,
+                logs = data.logs,
+                targetKcal = targets.kcal,
+                onSelect = { selectedKey = it.toString() },
+                onMonthChange = { next ->
+                    monthKey = next.toString()
+                    // 翻到别的月份时，选中日跟着落在这个月内，避免详情和日历对不上。
+                    if (YearMonth.from(selected) != next) {
+                        selectedKey = if (next == currentMonth) today.toString() else next.atDay(1).toString()
+                    }
+                },
+                onToday = {
+                    monthKey = currentMonth.toString()
+                    selectedKey = today.toString()
+                },
+            )
         }
 
-        item {
-            FitCard {
-                WeekBarChart(values = values, target = targets.kcal, labels = labels)
-                Spacer(Modifier.height(10.dp))
-                Text(
-                    "虚线是每天的目标 ${targets.kcal} kcal",
-                    color = c.text3,
-                    fontSize = 11.5.sp
+        item(key = "day-summary") {
+            DaySummaryCard(
+                date = selected,
+                entries = data.logs[selected.toString()].orEmpty(),
+                targets = targets,
+            )
+        }
+
+        item(key = "weight-trend") {
+            Column {
+                IosSectionHeader(
+                    title = "体重趋势",
+                    trailing = {
+                        if (weights.isNotEmpty()) {
+                            Text(
+                                "近 ${weights.size} 次",
+                                style = IosTypography.footnote,
+                                color = colors.tertiaryContent,
+                            )
+                        }
+                    },
                 )
-            }
-        }
-
-        item {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(top = 10.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                FitCard(modifier = Modifier.weight(1f), padding = 15.dp) {
-                    Text("日均摄入 · $recorded 天", color = c.text3, fontSize = 11.sp)
-                    Spacer(Modifier.height(6.dp))
-                    Row(verticalAlignment = Alignment.Bottom) {
-                        Text(
-                            avg.toString(),
-                            color = c.text,
-                            fontSize = 23.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(" kcal", color = c.text3, fontSize = 11.sp, modifier = Modifier.padding(bottom = 3.dp))
-                    }
-                }
-                FitCard(modifier = Modifier.weight(1f), padding = 15.dp) {
-                    Text("达标天数", color = c.text3, fontSize = 11.sp)
-                    Spacer(Modifier.height(6.dp))
-                    Row(verticalAlignment = Alignment.Bottom) {
-                        Text(
-                            hit.toString(),
-                            color = c.text,
-                            fontSize = 23.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(" / 7 天", color = c.text3, fontSize = 11.sp, modifier = Modifier.padding(bottom = 3.dp))
-                    }
-                }
-            }
-        }
-
-        item {
-            SectionTitle("体重趋势", trailing = if (weights.isEmpty()) "" else "近 ${weights.size} 次")
-        }
-
-        item {
-            FitCard {
-                if (weights.isEmpty()) {
-                    EmptyState(text = "还没有体重记录")
-                } else {
-                    WeightLineChart(points = weights.map { it.kg })
-                    Spacer(Modifier.height(6.dp))
-                    Row(Modifier.fillMaxWidth()) {
-                        Text(
-                            "起 ${trimKg(weights.first().kg)} kg · ${Dates.short(weights.first().date)}",
-                            color = c.text3,
-                            fontSize = 11.sp
-                        )
-                        Spacer(Modifier.weight(1f))
-                        Text(
-                            "最新 ${trimKg(weights.last().kg)} kg · ${Dates.short(weights.last().date)}",
-                            color = c.text2,
-                            fontSize = 11.sp
-                        )
-                    }
-                }
-
-                Spacer(Modifier.height(14.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    FitTextField(
-                        value = weightInput,
-                        onValueChange = { weightInput = it },
-                        placeholder = "今天的体重 kg",
-                        keyboardType = KeyboardType.Decimal,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Spacer(Modifier.width(9.dp))
-                    PrimaryButton("记录") {
-                        val v = weightInput.toDoubleOrNull()
-                        if (v != null) {
-                            onAddWeight(v)
-                            weightInput = ""
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(ContinuousRoundedRectangle(26.dp))
+                        .background(colors.elevatedBackground)
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                ) {
+                    if (weights.isEmpty()) {
+                        EmptyHint(text = "还没有体重记录\n记录一次就能看到趋势", symbol = null)
+                    } else {
+                        WeightLineChart(points = weights.map { it.kg }, chartHeight = 100.dp)
+                        Spacer(Modifier.height(6.dp))
+                        Row(Modifier.fillMaxWidth()) {
+                            Text(
+                                "起 ${weights.first().kg.pretty()} kg · ${Dates.short(weights.first().date)}",
+                                style = IosTypography.caption2,
+                                color = colors.tertiaryContent,
+                            )
+                            Spacer(Modifier.weight(1f))
+                            Text(
+                                "最新 ${weights.last().kg.pretty()} kg · ${Dates.short(weights.last().date)}",
+                                style = IosTypography.caption2,
+                                color = colors.secondaryContent,
+                            )
                         }
                     }
                 }
             }
         }
 
-        item {
-            Text(
-                "建议每天早晨空腹、上完厕所后称，看周平均而不是单日。",
-                color = c.text3,
-                fontSize = 11.5.sp,
-                modifier = Modifier.padding(start = 4.dp, top = 10.dp)
-            )
+        item(key = "weight-input") {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(ContinuousRoundedRectangle(26.dp))
+                    .background(colors.elevatedBackground)
+                    .padding(16.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("今天的体重", style = IosTypography.body, color = colors.content)
+                    Spacer(Modifier.weight(1f))
+                    WeightInput(
+                        value = weightInput,
+                        onValueChange = { weightInput = it },
+                        placeholder = "68.2",
+                        colors = colors,
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text("kg", style = IosTypography.body, color = colors.tertiaryContent)
+                }
+                Spacer(Modifier.height(12.dp))
+                PrimaryCapsule(
+                    text = "记录今天体重",
+                    height = 44.dp,
+                    onClick = {
+                        val v = weightInput.toDoubleOrNull()
+                        if (v != null && v >= 20 && v <= 300) {
+                            onAddWeight(v)
+                            weightInput = ""
+                        } else {
+                            onInvalidWeight()
+                        }
+                    },
+                )
+            }
+        }
+
+        item(key = "footer") {
+            IosGroupFooter("建议每天早晨空腹、上完厕所后称，看周平均而不是单日。")
         }
     }
 }
 
-private fun trimKg(v: Double): String {
-    val r = Math.round(v * 10) / 10.0
-    return if (r == Math.floor(r)) r.toInt().toString() else r.toString()
+@Composable
+private fun WeightInput(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    colors: GlassColors,
+) {
+    // 占位符放在 decorationBox 里，输入时输入框不会被重建、光标不会跳回开头。
+    BasicTextField(
+        value = value,
+        onValueChange = onValueChange,
+        singleLine = true,
+        textStyle = IosTypography.body.copy(color = colors.content, textAlign = TextAlign.End),
+        cursorBrush = SolidColor(colors.accent),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+        modifier = Modifier.width(92.dp),
+        decorationBox = { innerTextField ->
+            if (value.isEmpty()) {
+                Text(
+                    placeholder,
+                    style = IosTypography.body,
+                    color = colors.tertiaryContent,
+                    textAlign = TextAlign.End,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            innerTextField()
+        },
+    )
 }

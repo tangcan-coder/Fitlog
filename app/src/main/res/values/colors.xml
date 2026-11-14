@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="window_bg">#F2F3F5</color>
+    <!-- 与 Glasmio 的分组背景一致，避免冷启动时先闪一下别的灰。 -->
+    <color name="window_bg">#F2F2F7</color>
     <color name="ic_launcher_background">#0A0C10</color>
 </resources>

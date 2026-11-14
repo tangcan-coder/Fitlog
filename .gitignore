@@ -21,3 +21,11 @@ captures/
 
 # 本机 SDK 路径，换机器要由 Studio 自己生成
 local.properties
+
+# 本机备份 / 临时文件
+*.bak
+*.orig
+*.rej
+*.hprof
+.DS_Store
+Thumbs.db

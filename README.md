@@ -2,11 +2,20 @@
 
 自用的本地饮食记录 App。纯离线，数据只放在手机里，不联网、不登录、没有网络权限。
 
-原生 Kotlin + Jetpack Compose 写的（不是网页套壳），界面是深色底 + 荧光绿 + 悬浮 Dock。
+原生 Kotlin + Jetpack Compose，界面是 **iOS 液态玻璃（Liquid Glass）风格**：
+大标题 + 分组列表 + 悬浮玻璃底栏，滚动时底栏和标题栏会像 iOS 一样收缩、模糊、透出底下的内容。
 
 - **工程位置**：`D:\AndroidProjects\FitLog`
 - **包名**：`com.fitlog.app`
 - **当前版本**：1.0（versionCode 1）
+
+| 今日（浅色） | 统计 | 食物库 |
+|---|---|---|
+| ![今日](docs/screenshots/today-light.png) | ![统计](docs/screenshots/stats-light.png) | ![食物库](docs/screenshots/library-light.png) |
+
+| 统计（深色） | 选择食物（深色） | 滚动后的收缩态 |
+|---|---|---|
+| ![统计深色](docs/screenshots/stats-dark.png) | ![选择食物](docs/screenshots/select-dark.png) | ![滚动](docs/screenshots/scrolled-dark.png) |
 
 ---
 
@@ -16,17 +25,29 @@
 |---|---|
 | Android Studio | `D:\android studio` |
 | JDK | Studio 自带 JBR 25（`D:\android studio\jbr`） |
-| Android SDK | `C:\Users\ASUS\AppData\Local\Android\Sdk`（写在 `local.properties`） |
+| Android SDK | `D:\Android\Sdk`（已从 C 盘迁出，写在 `local.properties`） |
 | SDK Platform | API 37（Android 17） |
 | build-tools | 36.0.0 |
 | Gradle | 9.9.1（wrapper 自动下载，已配腾讯镜像） |
 | AGP | 9.5.1 |
 | Kotlin | 2.4.21 |
 | Compose BOM | 2026.09.00 |
-| minSdk / targetSdk | 26 / 37 |
+| 液态玻璃 UI | [Glasmio](https://github.com/NEORUAA/Glasmio) 0.1.3 |
+| minSdk / targetSdk | 33 / 37 |
 
-> **换电脑时要改一处**：`local.properties` 里的 `sdk.dir` 是绝对路径。
-> 换机器直接删掉这个文件，Studio 打开工程时会自己重新生成。
+> **路径已全部落在 D 盘**，C 盘不再保存任何 Android 编译产物：
+>
+> | 内容 | 位置 | 靠什么变量定位 |
+> |---|---|---|
+> | Android SDK | `D:\Android\Sdk` | `ANDROID_HOME` / `ANDROID_SDK_ROOT`（用户环境变量） |
+> | 模拟器实例 | `D:\Android\avd` | `ANDROID_AVD_HOME`（用户环境变量） |
+> | Gradle 依赖缓存 | `C:\Users\ASUS\.gradle` | 系统约定，删除后自动重建 |
+>
+> **换电脑时要改两处**：`local.properties` 里的 `sdk.dir`（或直接删掉这个文件让 Studio 重新生成），
+> 以及上面三个环境变量。
+>
+> `minSdk` 是 **33** 而不是更低的 26：Glasmio 的 AAR 清单强制要求 33，
+> 它的折射/模糊管线本身也依赖 API 31+ 的 `RenderEffect` / `RuntimeShader`。
 
 ---
 
@@ -37,12 +58,78 @@
 2. 等右下角 Gradle 同步跑完。首次要下依赖，约 5–10 分钟；之后打开是秒同步。
 3. 顶部选设备：
    - **真机**：手机「设置 → 关于手机 → 连点版本号 7 次」→ 开发者选项 → USB 调试 → 插线并在手机上允许调试
-   - **模拟器**：Device Manager → Create Device，选 API 37，建议 Graphics 设为 `Hardware - GLES 2.0`（软件渲染会非常慢）
+   - **模拟器**：Device Manager → Create Device，选 API 37，**Graphics 必须选 `Hardware - GLES 2.0` 或 Vulkan**
+     （选 SwiftShader 软件渲染会黑屏，见第八节）
 4. 点绿色 ▶ 运行（`Shift + F10`）
 
 ---
 
-## 三、怎么调试
+## 三、UI 是怎么搭的
+
+整套视觉效果来自 **Glasmio**（Apache-2.0，Java/Kotlin + 少量 C++），它把 iOS 26/27 的
+玻璃材质、控件、动画和交互在 Android 上重做了一遍。我们只负责「内容」和「品牌色」。
+
+### 1. 三层结构
+
+`ui/FitLogApp.kt` 就是全部骨架：
+
+```kotlin
+FitLogTheme {                       // 主题：GlasmioTheme + FitLog 品牌色
+    GlasmioIconProvider {           // 图标：SF Symbols 没有字体时回退到 Material
+        GlasmioBackdropHost(
+            sampledContent = { /* 当前页面：被录制成玻璃的采样源 */ },
+            overlayContent = { /* 玻璃底栏 + 弹层 + Toast */ },
+        )
+    }
+}
+```
+
+关键点是 **「玻璃不能采样到自己」**：页面的普通内容放 `sampledContent`，
+所有玻璃控件（底栏、弹层、Toast）放 `overlayContent`。所以页面内部不要再放
+`GlasmioButton` / `GlassSurface` 这类采样背景的控件，否则会形成反馈环路（画面会糊成一团）。
+
+### 2. 页面
+
+每个 Tab 都是一个 `GlasmioPinnedListPage`：
+
+- 大标题 + 副标题，滚动到阈值后自动收进顶部工具栏（弹簧动画）
+- 顶部工具栏带渐进模糊，页面内容从下面滚过时会被磨砂
+- `actions` 槽放玻璃按钮（今日页的左右箭头、食物库的加号）
+- 内容用 `GlasmioGroupedList` + `GlasmioListRow`，就是 iOS「设置」那种分组表格
+
+底部是 `GlasmioNavigationBar`：四个 Tab 的玻璃胶囊 + 选中项的透镜。
+列表向下滚 64dp 后会自动收缩成左下角一个小圆，点一下再展开。
+
+### 3. 弹层
+
+- 选择食物 / 新建食物 / 编辑记录 / 批量导入 / 资料：`GlasmioBottomSheet`
+  - 顶部按钮用 `GlasmioSheetTopToolbar` + `GlasmioSheetButton`（玻璃材质，跟着内容滚动做磨砂）
+  - 表单用分组列表 + `FieldRow`，分类用胶囊，二选一用 `SegmentedRow`
+  资料页长这样：
+
+  ![资料与目标](docs/screenshots/profile-light.png)
+
+- 清空数据 / 删除食物 / 导入确认：`GlasmioAlertDialog`（1.2× 缩放进场，和 iOS 一样）
+- 弹层要「关到底」才移出组合树，`ui/sheets/SheetHost.kt` 里专门做了 420ms 的保留，
+  否则退场动画会闪一下。
+
+### 4. 品牌色与图标
+
+- 强调色：`ui/theme/Theme.kt` 的 `FitPalette.accent()`，现在取 iOS 系统绿
+  （浅色 `#34C759` / 深色 `#30D158`）。改这一个函数，整站按钮、选中态、图表全跟着变。
+- 宏量配色：`FitPalette.protein / carbs / fat`（红蓝橙），超出目标时自动转红。
+- 底栏两个图标（刀叉、柱状图）是 `ui/FitIcons.kt` 里手写的 `ImageVector`。
+  原因见下一节：Glasmio 的底栏只接受 `SfSymbol` 枚举，而苹果的符号字体不能随包分发。
+
+### 5. 为什么不带 SF Symbols 字体
+
+Glasmio 的 `SfIcon` 在没有提供字体时会走 `GlasmioIconResolver` 回退到 Material 图标，
+分发 SF Pro / SF Symbols 需要苹果授权，所以这里不打包字体，只把两个「语义最不贴」的
+底栏图标换成自绘矢量。其余图标（加号、垃圾桶、日历、箭头……）都用 Glasmio 内置的回退表。
+
+---
+
+## 四、怎么调试
 
 ### 1. 断点调试（最常用）
 
@@ -65,14 +152,11 @@
 
 ### 2. Compose 界面预览（改样式不用装手机）
 
-`ui/Previews.kt` 里已经准备好 5 个预览：今日（有记录 / 空）、食物库、统计、我的，深色浅色都有。
+`ui/Previews.kt` 里有 6 个预览：热量环（深浅色）、宏量卡、历史日历、当日详情、体重折线。
 
 - 打开这个文件，右上角切到 **Split** 或 **Design**，右侧就是模拟画面
-- 改颜色、改间距，预览面板会实时刷新
-- 预览用的是 `Sample` 里的假数据，**不会影响手机上的真实数据**
-- 想加新预览：照抄一个 `@Preview` 函数改参数即可
-
-弹层（新建食物 / 批量导入 / 资料）依赖 ViewModel，预览里看不到，这部分只能跑起来点。
+- 只预览**不依赖玻璃采样**的零件。整页预览需要 `GlasmioBackdropHost` 的录制层，
+  Studio 预览渲染不出来，这部分只能跑模拟器/真机看。
 
 ### 3. 看界面层级和重组次数
 
@@ -80,24 +164,23 @@
 
 - 看每个 Composable 的边界、尺寸、实际生效的 modifier
 - 勾上 **Show Recomposition Counts**：改一处数据后某个节点重组了几十次，就是那里该加 `remember` 了
-- 颜色、字体、padding 到底被谁覆盖，在这里看比猜快
+- 玻璃控件每帧都在重新采样，重组次数比其他页面高是正常的；看 `sampledContent` 那一层才有意义
 
 ### 4. 看日志
 
 `Logcat` 面板（底部工具栏那只猫）：
 
 - 过滤栏输入 `package:com.fitlog.app`，只看这个应用
-- 代码里目前没留日志。想临时加就写 `android.util.Log.d("FitLog", "xxx")`，然后在过滤栏输入 `tag:FitLog`
 - 崩溃一定从这里看：搜 `FATAL EXCEPTION`，下面 `Caused by` 那行才是根因
+- 玻璃渲染失败通常**不会崩**，只会黑一块，见第八节
 
 ### 5. 性能
 
-**Run → Profiler**：CPU 看主线程卡在哪（Compose 卡顿多半是重组太多），Memory 看有没有泄漏。
-注意 debug 包本身有额外开销，数字偏悲观，**要看真实表现请装 release 包**。
+**Run → Profiler**：CPU 看主线程卡在哪，Memory 看有没有泄漏。
+玻璃材质是逐帧采样的，低端机上更吃 GPU；调试时可以在 `GlasmioTheme` 里临时加
+`appearance = GlassAppearance(reduceTransparency = true)` 关掉折射对比帧率。
 
 ### 6. 清空数据重新来一遍
-
-调试经常需要「回到刚装好的状态」，三种方式任选：
 
 ```bash
 # 方式一：清空应用数据（最干净，等于刚安装）
@@ -115,7 +198,7 @@ adb exec-out run-as com.fitlog.app cat files/datastore/fitlog.preferences_pb
 
 ---
 
-## 四、命令行也行
+## 五、命令行也行
 
 工程自带 Gradle Wrapper，不装 Gradle 也能跑：
 
@@ -128,9 +211,17 @@ gradlew.bat assembleDebug
 rem 直接装到已连接的设备
 gradlew.bat installDebug
 
+rem 构建一个可以直接安装的 release 包（用 debug 签名，自用方便）
+gradlew.bat assembleRelease
+adb install -r app\build\outputs\apk\release\app-release.apk
+
 rem 跑单元测试
 gradlew.bat testDebugUnitTest
 ```
+
+> **日常用请装 release 包。** debug 包里 Compose 基本跑在解释执行下，
+> 滚动这种每帧采样玻璃的界面会明显更涩；同样的代码 release 包顺得多。
+> 体积也会从 ~75 MB 降到 ~56 MB。
 
 用 Git Bash 就把 `gradlew.bat` 换成 `./gradlew`，并先指定 JDK：
 
@@ -140,17 +231,18 @@ export JAVA_HOME="/d/android studio/jbr"
 
 ---
 
-## 五、目录结构
+## 六、目录结构
 
 ```
 D:\AndroidProjects\FitLog\
 ├── settings.gradle.kts            工程名与模块声明
-├── build.gradle.kts               根构建脚本（含 KGP 版本抬升，见第六节）
+├── build.gradle.kts               根构建脚本（含 KGP 版本抬升，见第七节）
 ├── gradle.properties              Gradle 内存与缓存开关
 ├── local.properties               SDK 路径（本机专用，不进版本库）
-├── .gitignore
+├── .gitignore / .gitattributes    生成物、行尾规则
+├── docs\screenshots\              README 里的截图（7 张）
 ├── gradle\
-│   ├── libs.versions.toml         所有依赖版本集中在这里
+│   ├── libs.versions.toml         所有依赖版本集中在这里（含 glasmio）
 │   └── wrapper\                   自带 Gradle 9.9.1
 └── app\
     ├── build.gradle.kts           模块配置：SDK 版本、依赖
@@ -171,12 +263,17 @@ D:\AndroidProjects\FitLog\
         │   │   │   └── BatchImport.kt         批量粘贴解析
         │   │   └── ui\
         │   │       ├── AppViewModel.kt        唯一状态源，所有操作都走这里
-        │   │       ├── FitLogApp.kt           骨架：背景 + 页面切换 + Dock + 弹层
-        │   │       ├── Previews.kt            Studio 界面预览（★ 改样式先看这里）
-        │   │       ├── theme\Theme.kt         深/浅色两套色板
-        │   │       ├── components\            卡片、按钮、输入框、图表、图标（全自绘）
-        │   │       ├── screens\               今日 / 选择食物 / 食物库 / 统计 / 我的
-        │   │       └── sheets\                新建食物 / 编辑记录 / 批量导入 / 资料
+        │   │       ├── FitLogApp.kt           根：主题 + 采样宿主 + 底栏 + 弹层
+        │   │       ├── FitIcons.kt            底栏两个自绘图标 + 图标解析器
+        │   │       ├── Previews.kt            Studio 组件预览
+        │   │       ├── theme\Theme.kt         Glasmio 主题 + FitLog 品牌色
+        │   │       ├── components\
+        │   │       │   ├── IosPrimitives.kt   iOS 零件：分组标题、搜索框、表单行、
+        │   │       │   │                      分段控件、按钮、热量环、体重折线
+        │   │       │   └── HistoryCalendar.kt 月历 + 选中日期的营养详情
+        │   │       ├── screens\               今日 / 食物库 / 统计 / 我的
+        │   │       └── sheets\                弹层容器 + 选择食物 / 食物表单 /
+        │   │                                  记录份量 / 批量导入 / 资料
         │   └── res\                           图标、主题、颜色
         └── test\java\com\fitlog\app\
             └── DomainTest.kt                  8 条单元测试
@@ -184,12 +281,18 @@ D:\AndroidProjects\FitLog\
 
 ---
 
-## 六、设计上的几个决定
+## 七、设计上的几个决定
 
+- **UI 用 Glasmio，不自己画玻璃。** 液态玻璃的折射、色散、高光、阴影是一整套
+  运行时着色器管线（AGSL + RenderEffect），自己实现要写几千行 native 代码，
+  还得逐帧对齐 iOS。Glasmio 已经把这套做完了，而且控件、动画、交互一起给了。
+- **页面内容与玻璃分层。** 只有导航栏、工具栏、弹层是玻璃；页面里的卡片用
+  iOS 分组列表的实色底。这不是偷懒——玻璃控件如果采样到自己所在的那一层，
+  反馈环路会让画面糊掉（Glasmio 文档里也明确要求分层）。
 - **没有用 Room。** 这个数据量（几百种食物、几年记录）一份 JSON 完全够，
   换来的是导出、导入、换机迁移都只是读写一个文件，调试时也能直接 `cat` 出来看。
-- **没有引图标库和图表库。** Tab 图标、操作图标、柱状图、折线图全用 Canvas 画，
-  少两个依赖，风格也统一。
+- **图表还是自己画的。** 柱状图、折线图、热量环都是 `Canvas`，
+  没引图表库；图标只有两个是自绘矢量，其余复用 Glasmio 的 Material 回退表。
 - **状态只有一份。** `AppViewModel` 持有 `AppData` 和界面状态，Compose 单向订阅，
   不会出现「某个角落的数据忘了刷新」。
 - **没有用 Hilt。** 就一个 `AppViewModel`，手动 `viewModelFactory` 注入 Repository，
@@ -204,16 +307,16 @@ AGP 9.0 起内置 Kotlin 支持，**不再需要** `org.jetbrains.kotlin.android
 
 ---
 
-## 七、功能
+## 八、功能
 
 | 模块 | 内容 |
 |---|---|
-| 今日 | 热量环、可吃余量、蛋白/碳水/脂肪三张卡、四餐分栏、前后翻日期、复制昨天 |
+| 今日 | 热量环、可吃余量、蛋白/碳水/脂肪三栏（超出目标变红）、四餐分组、前后翻日期、复制昨天 |
 | 记录 | 搜索（中文 / 拼音首字母）、分类筛选、份量步进、一顿汇总后一次入账 |
-| 食物库 | 新建/编辑/删除、七个分类、按使用频次排序、批量粘贴导入 |
-| 统计 | 近 7 天柱状图 + 目标虚线、日均摄入、达标天数、体重折线 |
-| 我的 | 目标与代谢数据、导出/导入备份、清空数据 |
-| 体验 | 深/浅色跟随系统、底部悬浮 Dock、键盘弹起时表单自动上移 |
+| 食物库 | 新建/编辑/删除、七个分类、按使用频次排序、批量粘贴导入、空库引导建第一个 |
+| 统计 | 月历（每天标出当日热量，可一直往回翻）、点某天看当日热量/蛋白/碳水/脂肪与餐次、体重折线、记体重 |
+| 我的 | 目标与代谢数据、导出/导入备份、清空数据（带确认弹窗） |
+| 体验 | 深浅色跟随系统、大标题随滚动收起、底栏随滚动收缩、弹层磨砂、键盘弹起时表单自动上移 |
 
 ### 用起来要知道的三件事
 
@@ -226,29 +329,37 @@ AGP 9.0 起内置 Kotlin 支持，**不再需要** `org.jetbrains.kotlin.android
 
 ---
 
-## 八、已知限制 / 以后想加
+## 九、已知限制 / 以后想加
 
+- **必须 API 33+，且需要硬件 GPU。** Glasmio 用 `RuntimeShader` 做折射，
+  模拟器用 SwiftShader（软件渲染）时会黑屏——不是 App 崩了，是玻璃画不出来。
+  模拟器启动参数加 `-gpu host` 即可。
 - 没做三餐定时提醒。要加的话是 `WorkManager` + 通知权限，半小时的活。
 - 没做「我的套餐」（一组常吃食物一键记）。用一段时间觉得需要再加。
+- **包体偏大**：Glasmio 自带 Material 图标全集和几种 ABI 的 native 库。
+  debug ~75 MB、release ~56 MB；真要分发时开 `isMinifyEnabled` + ABI 分包会小很多。
 - 没做 release 签名配置。现在只有 debug 包，自己用够了；要正式分发再生成 keystore。
 
 ---
 
-## 九、验证记录
+## 十、验证记录
 
-跑在 `Medium_Phone_API_37`（1080×2400 @420dpi）上，逐项点过：
+跑在 `Medium_Phone_API_37`（1080×2400 @420dpi，`-gpu host`）上逐项点过：
 
 | 验证项 | 结果 |
 |---|---|
-| 新建食物 → 保存 | 库里 1 种，320 kcal / 蛋白 28，提示「已保存」 |
-| 早餐加 2 份 → 记录 | 环上「已摄入 640 · 目标 1740」剩余 1100；蛋白 56/141、碳水 24/168、脂肪 32/56 |
-| 首页卡片 | 早餐显示「Xianggu · 2份 · 640 kcal」，空餐次显示「还没有记录」 |
-| 统计 | 柱子按 640/1740 比例，虚线为目标；日均 640 kcal · 1 天；达标 0/7 |
-| 记体重 70.5 | 折线出单点，起止都标 70.5 kg；资料体重同步 → 目标 1730 变 1740 |
-| 导出备份 | 系统保存框默认名 `fitlog-2026-11-14.json`，JSON 结构与网页版一致 |
-| 清空 → 导入恢复 | 清空后 `foods:[]`；导入同一文件后完整还原，「上次备份」刷新 |
-| 冷启动持久化 | `force-stop` 后重启，食物/记录/体重/资料全在 |
-| 深浅色 | 两套色板都正常，状态栏图标随之反色 |
+| 首次启动 | 自动弹出「资料与目标」玻璃弹层；取消后不再反复弹 |
+| 四个 Tab | 今日 / 食物库 / 统计 / 我的 都能切，选中胶囊和页面一致 |
+| 大标题收起 | 向上滚动后标题收进工具栏、顶部渐进模糊生效 |
+| 底栏收缩 | 滚动 64dp 后收成左下角小圆，点一下展开 |
+| 选择食物 → 记录 | 步进到「已选 1 份 · 约 104 kcal」，入账后今日页晚餐多出一条 |
+| 新建 / 编辑食物 | 分类胶囊、单位、克数、四项营养都能存；删除前有确认弹窗 |
+| 批量导入 | 一行一条粘贴，导入后分类默认「主食」 |
+| 统计 | 月历显示每天热量、可翻月；点 11 月 14 日显示 1948 kcal / 蛋白 154.1g 超标变红；体重折线 11 个点 |
+| 记体重 | 单次记录后折线更新，「我的」里的身高体重同步 |
+| 清空数据 | 侧边玻璃弹窗确认，确认后数据清空 |
+| 深浅色 | 两套色板都正常，状态栏图标随之反色，玻璃材质自动换配方 |
+| 导入 / 导出备份 | JSON 结构与网页版一致，导入可完整还原 |
 
 单元测试 8 条全过（`gradlew testDebugUnitTest`）：热量目标与网页版一致、女性目标下限、
 拼音检索、批量导入（含逗号写法与默认分类/拼音别名）、份数累加、备份 JSON 往返、
@@ -256,20 +367,26 @@ AGP 9.0 起内置 Kotlin 支持，**不再需要** `org.jetbrains.kotlin.android
 
 ---
 
-## 十、踩过的坑
+## 十一、踩过的坑
 
-都是实际遇到过的，记下来省得以后重复排查：
+**1. 模拟器一片黑，只有状态栏？**
+那是 SwiftShader 软件渲染画不出 `RuntimeShader` 的玻璃，不是崩溃。
+用 `emulator -avd <名字> -gpu host` 启动（或在 AVD 设置里把 Graphics 改成
+`Hardware - GLES 2.0`）。另外软件渲染本身也慢，冷启动一分多钟很正常。
 
-**1. 模拟器慢是正常的，别怀疑代码。**
-默认模拟器用 SwiftShader 软件渲染（没 GPU 加速），冷启动能到一分多钟，
-连续快速按键甚至会触发「Input dispatching timed out」。
-真机是秒开。想让模拟器快点：AVD 设置里 Graphics 改 `Hardware - GLES 2.0`。
+**2. 页面里放了玻璃按钮，画面糊成一团。**
+玻璃控件会采样「自己所在的那一层」，形成反馈环路。记住分层：
+页面内容在 `sampledContent`，玻璃控件只在 `overlayContent`（底栏、弹层）。
 
-**2. 改完代码一片红 `Unresolved reference`。**
-先看 `build.gradle.kts` 里那行 KGP 抬升还在不在（见第六节），
+**3. 弹层关掉时闪一下空白。**
+Glasmio 的弹层是独立窗口，退场动画期间必须留在组合树里。
+`SheetHost` 里 `visible = false` 之后 delay 420ms 再移除，别直接 `if (sheet != null)`。
+
+**4. 改完代码一片红 `Unresolved reference`。**
+先看 `build.gradle.kts` 里那行 KGP 抬升还在不在（见第七节），
 再 **Build → Clean Project** 后重新同步。
 
-**3. Gradle 同步卡住 / 下载超时。**
+**5. Gradle 同步卡住 / 下载超时。**
 `gradle/wrapper/gradle-wrapper.properties` 的 `distributionUrl` 已经指向腾讯镜像：
 
 ```
@@ -278,11 +395,11 @@ distributionUrl=https\://mirrors.cloud.tencent.com/gradle/gradle-9.9.1-bin.zip
 
 依赖仓库是 `google()` + `mavenCentral()`，国内偶尔慢，重试通常就好。
 
-**4. 首帧闪一下「0 摄入」的假数据？**
+**6. 首帧闪一下「0 摄入」的假数据？**
 已经在 `FitLogApp.kt` 开头加了门禁：数据没读出来只画背景色。要是又出现，
 说明 `AppState.loaded` 的判断被改动了。
 
-**5. 用 adb 点界面点不准。**
+**7. 用 adb 点界面点不准。**
 别靠截图目测坐标，用无障碍层的真实边界：
 
 ```bash
@@ -290,10 +407,11 @@ adb shell uiautomator dump /sdcard/ui.xml
 adb exec-out cat /sdcard/ui.xml
 ```
 
-Git Bash 下要加 `MSYS_NO_PATHCONV=1`，否则 `/sdcard/...` 会被改写成 Windows 路径。
-另外 dump 失败时不会报错，会留下**上一次的旧文件**，容易读到过期界面。
+另外带 `topBar` 的玻璃弹层，顶部按钮不在无障碍树里（`uiautomator` 看不到「取消」「保存」），
+要点它们只能按屏幕坐标。Git Bash 下还要加 `MSYS_NO_PATHCONV=1`，
+否则 `/sdcard/...` 会被改写成 Windows 路径。
 
-**6. 存档万一读不出来，去哪里找原文？**
+**8. 存档万一读不出来，去哪里找原文？**
 
 `AppCodec.decode` 失败时不会直接拿空数据把存档盖掉 —— `AppRepository.mutate`
 会把解不开的原文先写到 `files/quarantine/fitlog-<时间戳>.json`（只留最近 3 份），
@@ -304,3 +422,51 @@ adb exec-out run-as com.fitlog.app cat files/quarantine/fitlog-1234567890.json
 ```
 
 也可以 **Device Explorer** 里直接下载。所以就算界面变成空的，数据通常还在。
+
+**9. 输入框里输入 `23`，显示成 `32`？**
+两个坑叠在一起：一是弹层内容不能用「滞后一帧的副本」——`SheetHost` 早期把内容指向
+`LaunchedEffect` 里更新的 `held`，每敲一个字都会先拿旧值重组一帧，输入框被外部值冲回去、
+光标跳回开头，下一个字符就插到了最前面；现在打开时直接用 vm 的实时状态，副本只留给退场动画。
+二是占位符要放进 `BasicTextField` 的 `decorationBox`，不要和输入框做兄弟节点——
+占位符消失会让输入框在组合树里换位置、被重建，光标同样会回到 0。
+
+**10. 切换深浅色后，顶栏和底栏变成不透明的灰？**
+Glasmio 的玻璃材质会缓存当前配方。如果让 Activity 自己消化 `uiMode` 变化（把 `uiMode`
+留在 `configChanges` 里），页面颜色会跟着变，但玻璃还是上一套配方，看起来就像蒙了层灰。
+现在清单里只保留 `orientation|screenSize|screenLayout|keyboardHidden`，
+系统换主题时 Activity 重建、材质重新初始化，顶栏底栏就正常了（ViewModel 和
+`rememberSaveable` 的状态都不会丢）。
+
+---
+
+## 十二、性能笔记（这一版做了什么）
+
+液态玻璃不是免费的：每一帧都要把页面录制下来，再做模糊、折射、高光和阴影。
+这一版针对「打字卡、滚动涩、底栏像掉帧」做了四件事：
+
+1. **主题对象缓存**：`FitLogTheme` 里把配色、字体、圆角、间距全部 `remember(dark)`。
+   之前每次重组都会 new 一套 `GlassColors` / `ColorScheme`，CompositionLocal 一变，
+   整棵树连同玻璃材质一起重组——打字、弹提示、切日期都会卡一下。
+2. **界面状态分流**：`AppViewModel` 把 `tab / date / sheet / message` 拆成独立 StateFlow，
+   页面只订阅 tab 和日期，弹层和提示条各自订阅自己的流。在弹层里每敲一个字
+   不再让整页（以及底下的玻璃采样层）重组。
+3. **长列表虚拟化**：食物库和选择食物列表拆成 LazyColumn 的独立 item
+   （`groupedRowShape` 拼圆角、`glasmioGroupedListBackground` 上底色），
+   食物很多时也只有屏幕上的几行会被组合/绘制。
+4. **release 包**：`assembleRelease` 现在带 debug 签名可以直接装，`isDebuggable=false`
+   让 Compose 走优化后的执行路径，比 debug 包顺得多。
+
+**实测**（Medium_Phone_API_37，`-gpu host`，`dumpsys gfxinfo` 中位帧）：
+
+| 场景 | 中位帧 |
+|---|---|
+| 系统设置列表（无玻璃基线） | 8 ms |
+| Glasmio 官方 demo（同款玻璃管线） | 20–26 ms |
+| 本应用「我的」「食物库」 | 25–29 ms |
+| 本应用「今日」（热量环 + 四组列表） | ~30 ms |
+
+把玻璃关掉、底栏去掉、采样宿主换成普通 Box 再测，帧时间几乎不变——
+瓶颈在页面自身的组合/绘制，不在底栏的着色器。所以日常使用装 release 包收益最直接；
+如果手机上还是觉得重，可以在 `FitLogTheme` 里把 `GlassAppearance()` 改成
+`GlassAppearance(reduceTransparency = true)`，会关掉折射和背景采样。
+

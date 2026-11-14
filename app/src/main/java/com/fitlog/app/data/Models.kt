@@ -1,5 +1,6 @@
 package com.fitlog.app.data
 
+import androidx.compose.runtime.Immutable
 import kotlinx.serialization.Serializable
 
 /**
@@ -7,6 +8,7 @@ import kotlinx.serialization.Serializable
  * 这样以前在浏览器里记录的备份可以直接导入，不用重新录一遍。
  */
 
+@Immutable
 @Serializable
 data class Food(
     val id: String = "",
@@ -25,6 +27,7 @@ data class Food(
     val createdAt: Long = 0L
 )
 
+@Immutable
 @Serializable
 data class LogEntry(
     val id: String = "",
@@ -40,12 +43,14 @@ data class LogEntry(
     val ts: Long = 0L
 )
 
+@Immutable
 @Serializable
 data class WeightLog(
     val date: String,
     val kg: Double
 )
 
+@Immutable
 @Serializable
 data class Profile(
     val sex: String = "male",
@@ -57,6 +62,7 @@ data class Profile(
     val rate: Double = 0.5
 )
 
+@Immutable
 @Serializable
 data class Meta(
     val onboarded: Boolean = false,
@@ -64,6 +70,7 @@ data class Meta(
     val version: Int = 1
 )
 
+@Immutable
 @Serializable
 data class AppData(
     val foods: List<Food> = emptyList(),

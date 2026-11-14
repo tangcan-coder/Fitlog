@@ -99,6 +99,7 @@ data class AppState(
     val data: AppData = AppData()
 )
 
+@androidx.compose.runtime.Stable
 class AppViewModel(private val repo: AppRepository) : ViewModel() {
 
     val state: StateFlow<AppState> = repo.data
@@ -107,6 +108,22 @@ class AppViewModel(private val repo: AppRepository) : ViewModel() {
 
     private val _ui = MutableStateFlow(UiState())
     val ui: StateFlow<UiState> = _ui.asStateFlow()
+
+    /**
+     * 把界面状态拆成几条独立的流。
+     *
+     * 弹层里每敲一个字都会更新 [_ui]；如果界面直接订阅整份 `ui`，一次输入就会让整页
+     * （包括底下那层玻璃采样）重新组合一遍，手感会明显发涩。拆开之后：
+     * 打字只重新组合弹层、弹提示只重新组合提示条，页面和底栏不受影响。
+     */
+    val tab: StateFlow<Tab> = _ui.map { it.tab }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, Tab.TODAY)
+    val date: StateFlow<String> = _ui.map { it.date }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, UiState().date)
+    val sheet: StateFlow<Sheet?> = _ui.map { it.sheet }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+    val message: StateFlow<ToastMsg?> = _ui.map { it.message }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     /** 待落盘份量改动所对应的弹层状态；停手 [QTY_WRITE_DELAY_MS] 毫秒后由 [flushPendingQty] 写掉 */
     private var pendingQty: Sheet.Entry? = null

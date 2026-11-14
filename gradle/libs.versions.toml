@@ -7,6 +7,7 @@ lifecycle = "2.11.0"
 composeBom = "2026.09.00"
 datastore = "1.3.0"
 serialization = "1.13.0"
+glasmio = "0.1.3"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -23,6 +24,11 @@ compose-foundation = { group = "androidx.compose.foundation", name = "foundation
 compose-material3 = { group = "androidx.compose.material3", name = "material3" }
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "serialization" }
 junit = { group = "junit", name = "junit", version = "4.13.2" }
+
+# iOS 液态玻璃 UI 框架。glasmio-ui 会传递暴露 glass / core / icons，
+# 添加最高层模块即可（见 Glasmio README「在应用中使用」）。
+glasmio-ui = { group = "io.github.neoruaa.glasmio", name = "glasmio-ui", version.ref = "glasmio" }
+glasmio-scaffold = { group = "io.github.neoruaa.glasmio", name = "glasmio-scaffold", version.ref = "glasmio" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
