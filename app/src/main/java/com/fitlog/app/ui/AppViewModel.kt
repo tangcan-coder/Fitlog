@@ -19,6 +19,8 @@ import com.fitlog.app.domain.Dates
 import com.fitlog.app.domain.Ids
 import com.fitlog.app.domain.Pinyin
 import com.fitlog.app.domain.pretty
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -106,6 +108,10 @@ class AppViewModel(private val repo: AppRepository) : ViewModel() {
     private val _ui = MutableStateFlow(UiState())
     val ui: StateFlow<UiState> = _ui.asStateFlow()
 
+    /** 待落盘份量改动所对应的弹层状态；停手 [QTY_WRITE_DELAY_MS] 毫秒后由 [flushPendingQty] 写掉 */
+    private var pendingQty: Sheet.Entry? = null
+    private var qtyJob: Job? = null
+
     /* ---------------- 导航 ---------------- */
 
     fun selectTab(tab: Tab) {
@@ -129,6 +135,11 @@ class AppViewModel(private val repo: AppRepository) : ViewModel() {
     }
 
     fun closeSheet() {
+        // 份量可能有还没落盘的改动，关弹层前先把它写掉，否则最后一次点击会丢
+        if (pendingQty != null) {
+            qtyJob?.cancel()
+            viewModelScope.launch { flushPendingQty() }
+        }
         _ui.value = _ui.value.copy(sheet = null)
     }
 
@@ -351,28 +362,48 @@ class AppViewModel(private val repo: AppRepository) : ViewModel() {
         )
     }
 
+    /**
+     * 点一下 ± 只改界面上的份量，真正的写入攒到停手后再做一次。
+     * 之前每点一下就把整份 AppData 序列化并写盘，连点十下就是十次全量写，
+     * 记录攒到几年后会明显卡顿。
+     */
     fun changeEntryQty(delta: Double) {
         val sheet = _ui.value.sheet as? Sheet.Entry ?: return
         val next = (sheet.qty + delta).coerceIn(0.5, 20.0)
-        _ui.value = _ui.value.copy(sheet = sheet.copy(qty = next))
+        // 已经到上下限时界面不会变，没必要再安排一次写入
+        if (next == sheet.qty) return
 
-        viewModelScope.launch {
-            repo.mutate { d ->
-                val list = d.logs[sheet.date].orEmpty().map { e ->
-                    if (e.id != sheet.entryId) {
-                        e
-                    } else {
-                        e.copy(
-                            qty = next,
-                            kcal = sheet.per.kcal * next,
-                            p = sheet.per.p * next,
-                            c = sheet.per.c * next,
-                            fat = sheet.per.fat * next
-                        )
-                    }
+        val updated = sheet.copy(qty = next)
+        _ui.value = _ui.value.copy(sheet = updated)
+        pendingQty = updated
+
+        qtyJob?.cancel()
+        qtyJob = viewModelScope.launch {
+            delay(QTY_WRITE_DELAY_MS)
+            flushPendingQty()
+        }
+    }
+
+    /** 把攒下的份量变更落盘。可以重复调用：取走 pendingQty 后即清空，不会重复写。 */
+    private suspend fun flushPendingQty() {
+        val sheet = pendingQty ?: return
+        pendingQty = null
+
+        repo.mutate { d ->
+            val list = d.logs[sheet.date].orEmpty().map { e ->
+                if (e.id != sheet.entryId) {
+                    e
+                } else {
+                    e.copy(
+                        qty = sheet.qty,
+                        kcal = sheet.per.kcal * sheet.qty,
+                        p = sheet.per.p * sheet.qty,
+                        c = sheet.per.c * sheet.qty,
+                        fat = sheet.per.fat * sheet.qty
+                    )
                 }
-                d.copy(logs = d.logs + (sheet.date to list)) to Unit
             }
+            d.copy(logs = d.logs + (sheet.date to list)) to Unit
         }
     }
 
@@ -483,6 +514,9 @@ class AppViewModel(private val repo: AppRepository) : ViewModel() {
     }
 
     companion object {
+        /** 份量改动合并写入的等待时间：短到察觉不出延迟，长到能把连点合成一次写 */
+        private const val QTY_WRITE_DELAY_MS = 250L
+
         fun factory(context: Context) = viewModelFactory {
             initializer { AppViewModel(AppRepository(context)) }
         }

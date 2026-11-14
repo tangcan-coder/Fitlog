@@ -292,3 +292,15 @@ adb exec-out cat /sdcard/ui.xml
 
 Git Bash 下要加 `MSYS_NO_PATHCONV=1`，否则 `/sdcard/...` 会被改写成 Windows 路径。
 另外 dump 失败时不会报错，会留下**上一次的旧文件**，容易读到过期界面。
+
+**6. 存档万一读不出来，去哪里找原文？**
+
+`AppCodec.decode` 失败时不会直接拿空数据把存档盖掉 —— `AppRepository.mutate`
+会把解不开的原文先写到 `files/quarantine/fitlog-<时间戳>.json`（只留最近 3 份），
+然后再继续写入。这份内容本身就是一份完整备份，修一下可以直接「我的 → 导入恢复」：
+
+```bash
+adb exec-out run-as com.fitlog.app cat files/quarantine/fitlog-1234567890.json
+```
+
+也可以 **Device Explorer** 里直接下载。所以就算界面变成空的，数据通常还在。
