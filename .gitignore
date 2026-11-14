@@ -16,5 +16,8 @@ captures/
 .externalNativeBuild/
 .cxx/
 
+# 本机工作记录（环境实测、待办），不进版本库
+.workbuddy/
+
 # 本机 SDK 路径，换机器要由 Studio 自己生成
 local.properties
