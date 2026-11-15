@@ -8,6 +8,7 @@ import com.fitlog.app.data.Meta
 import com.fitlog.app.data.Profile
 import com.fitlog.app.data.WeightLog
 import com.fitlog.app.domain.BatchImport
+import com.fitlog.app.domain.Dates
 import com.fitlog.app.domain.Nutrients
 import com.fitlog.app.domain.Pinyin
 import com.fitlog.app.domain.kcalFromKj
@@ -18,6 +19,7 @@ import com.fitlog.app.domain.servingFromPer100g
 import com.fitlog.app.domain.targetsOf
 import com.fitlog.app.domain.totalsOf
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -168,6 +170,30 @@ class DomainTest {
         // 0.3 g / 100 g × 150 g 应当正好是 0.45 g，但 double 会算成 0.44999999999999996
         val one = servingFromPer100g(Nutrients(fat = 0.3), 150.0)!!
         assertEquals(0.5, one.fat, 0.001)
+    }
+
+    @Test
+    fun `跨零点只顺延「还停在昨天」的日期`() {
+        // 停在上一轮的今天：跟着系统走到新的一天（早上打开就直接记到今天）
+        assertEquals("2026-11-16", Dates.rolledForward("2026-11-15", "2026-11-15", "2026-11-16"))
+        // 用户手动翻到历史日期：不抢他的选择
+        assertNull(Dates.rolledForward("2026-11-10", "2026-11-15", "2026-11-16"))
+        // 白天正常回前台（日期没变）：什么都不做
+        assertNull(Dates.rolledForward("2026-11-15", "2026-11-15", "2026-11-15"))
+    }
+
+    @Test
+    fun `导入会拒绝不像备份的 JSON`() {
+        // 空对象能解析成空数据，但不能拿它覆盖用户存档
+        assertNull(AppCodec.decodeBackup("{}"))
+        assertNull(AppCodec.decodeBackup("""{"hello":"world"}"""))
+        assertNull(AppCodec.decodeBackup("这不是 JSON"))
+
+        // 只有 foods 一个键也算备份（空食物库导出的就是这种）
+        assertNotNull(AppCodec.decodeBackup("""{"foods":[]}"""))
+        // 真正的导出照常能进
+        val data = AppData(foods = listOf(Food(id = "f1", name = "米饭", kcal = 230.0)))
+        assertNotNull(AppCodec.decodeBackup(AppCodec.encode(data)))
     }
 
     @Test

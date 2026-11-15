@@ -6,9 +6,12 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -16,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.Text
@@ -32,8 +36,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.fitlog.app.data.AppData
 import com.fitlog.app.domain.Dates
@@ -67,6 +74,10 @@ import kotlinx.coroutines.delay
 fun FitLogApp(vm: AppViewModel) {
     val appState by vm.state.collectAsStateWithLifecycle()
     val dark = isSystemInDarkTheme()
+
+    // 挂后台过夜后回到前台，把「今天」对齐一次，否则早上的记录会落到昨天。
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { vm.syncDateToToday() }
+
     // 稳定的图标默认色，避免每次重组都换一个 lambda、把所有图标一起重组。
     val iconTint: @Composable () -> Color = remember { { LocalContentColor.current } }
 
@@ -204,16 +215,15 @@ private fun FitLogContent(vm: AppViewModel, data: AppData) {
     )
 }
 
-/** 底部提示条：只在提示语变化时重组。 */
+/** 底部提示条：只在提示语变化时重组。带「撤销」这类动作时停留更久，给用户点的时间。 */
 @Composable
 private fun BoxScope.ToastHost(vm: AppViewModel, bottomOffset: Dp) {
     val message by vm.message.collectAsStateWithLifecycle()
 
     LaunchedEffect(message?.id) {
-        if (message != null) {
-            delay(1800)
-            vm.consumeMessage()
-        }
+        val current = message ?: return@LaunchedEffect
+        delay(if (current.actionLabel != null) 4200 else 1800)
+        vm.consumeMessage(current.id)
     }
 
     AnimatedVisibility(
@@ -224,19 +234,44 @@ private fun BoxScope.ToastHost(vm: AppViewModel, bottomOffset: Dp) {
         enter = fadeIn(),
         exit = fadeOut(),
     ) {
-        Box(
+        Row(
             Modifier
                 .shadow(18.dp, Capsule())
                 .clip(Capsule())
                 .background(GlasmioTheme.colors.elevatedBackground)
                 .border(0.5.dp, GlasmioTheme.colors.separator, Capsule())
-                .padding(horizontal = 18.dp, vertical = 11.dp),
+                .padding(
+                    start = 18.dp,
+                    // 有动作时右侧留给可点的文字，裸提示保持对称留白
+                    end = if (message?.actionLabel != null) 8.dp else 18.dp,
+                    top = 12.dp,
+                    bottom = 12.dp,
+                ),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
                 message?.text.orEmpty(),
                 style = IosTypography.subheadline,
                 color = GlasmioTheme.colors.content,
             )
+            val actionLabel = message?.actionLabel
+            if (actionLabel != null) {
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    actionLabel,
+                    style = IosTypography.subheadline,
+                    fontWeight = FontWeight(600),
+                    color = GlasmioTheme.colors.accent,
+                    modifier = Modifier
+                        .clip(Capsule())
+                        .clickable {
+                            val current = message ?: return@clickable
+                            current.onAction?.invoke()
+                            vm.consumeMessage(current.id)
+                        }
+                        .padding(horizontal = 10.dp, vertical = 4.dp),
+                )
+            }
         }
     }
 }

@@ -29,4 +29,13 @@ object Dates {
     }
 
     fun short(ymd: String): String = md.format(parse(ymd))
+
+    /**
+     * 回到前台时该把日期顺延到哪一天。
+     *
+     * 只有「当前还停留在上一轮的今天」才跟着系统日期走；用户手动翻到别的日期
+     * （查看历史、补记前几天）时不能抢他的选择。返回 null 表示不用改。
+     */
+    fun rolledForward(current: String, lastKnownToday: String, today: String): String? =
+        if (today != lastKnownToday && current == lastKnownToday) today else null
 }

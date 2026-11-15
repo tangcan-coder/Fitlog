@@ -385,31 +385,6 @@ fun PrimaryCapsule(
     }
 }
 
-/** 文字按钮。 */
-@Composable
-fun TextAction(
-    text: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    enabled: Boolean = true,
-    destructive: Boolean = false,
-) {
-    val colors = GlasmioTheme.colors
-    Text(
-        text,
-        style = IosTypography.body,
-        color = when {
-            !enabled -> colors.tertiaryContent
-            destructive -> colors.destructive
-            else -> colors.accent
-        },
-        modifier = modifier
-            .clip(Capsule())
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-    )
-}
-
 /**
  * 把分组列表拆成独立 LazyColumn item 时，用来拼出「首行圆上角、末行圆下角」的形状。
  * 这样每一行都能被 LazyColumn 单独虚拟化，长列表不会整组一起组合。
@@ -809,40 +784,6 @@ fun WeightLineChart(
         drawPath(linePath, color = accent, style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round))
         points.forEachIndexed { i, v ->
             drawCircle(accent, radius = 3.dp.toPx(), center = Offset(px(i), py(v)))
-        }
-    }
-}
-
-/** 小块统计数字。 */
-@Composable
-fun StatTile(
-    title: String,
-    value: String,
-    unit: String,
-    modifier: Modifier = Modifier,
-) {
-    val colors = GlasmioTheme.colors
-    Column(
-        modifier
-            .clip(ContinuousRoundedRectangle(24.dp))
-            .background(colors.elevatedBackground)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-    ) {
-        Text(title, style = IosTypography.footnote, color = colors.secondaryContent)
-        Spacer(Modifier.height(6.dp))
-        Row(verticalAlignment = Alignment.Bottom) {
-            Text(
-                value,
-                style = IosTypography.title1,
-                fontWeight = FontWeight(600),
-                color = colors.content,
-            )
-            Text(
-                unit,
-                style = IosTypography.caption2,
-                color = colors.tertiaryContent,
-                modifier = Modifier.padding(bottom = 4.dp),
-            )
         }
     }
 }

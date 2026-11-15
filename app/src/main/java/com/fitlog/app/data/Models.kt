@@ -23,6 +23,7 @@ data class Food(
     val alias: String = "",
     val uses: Int = 0,
     val lastUsed: Long = 0L,
+    /** 网页版有「隐藏食物」，这里保留字段保证 JSON 往返不丢数据；界面暂时没有入口 */
     val hidden: Boolean = false,
     val createdAt: Long = 0L
 )
@@ -67,6 +68,7 @@ data class Profile(
 data class Meta(
     val onboarded: Boolean = false,
     val lastBackup: Long? = null,
+    /** 留给以后的存档迁移用；现在不变，字段本身是网页版 JSON 的一部分 */
     val version: Int = 1
 )
 

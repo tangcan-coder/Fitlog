@@ -67,7 +67,7 @@ class AppRepository(context: Context) {
 
     fun exportText(data: AppData): String = AppCodec.encodePretty(data)
 
-    fun parseImport(text: String): AppData? = AppCodec.decode(text)
+    fun parseImport(text: String): AppData? = AppCodec.decodeBackup(text)
 
     /**
      * 把解不开的存档原文落到 `files/quarantine/`，只保留最近 3 份。

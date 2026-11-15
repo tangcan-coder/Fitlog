@@ -98,7 +98,14 @@ sealed interface Sheet {
     data object Profile : Sheet
 }
 
-data class ToastMsg(val id: Long, val text: String)
+data class ToastMsg(
+    val id: Long,
+    val text: String,
+    /** 可点的动作标签（比如「撤销」）；为空时提示条就是一段纯文本 */
+    val actionLabel: String? = null,
+    /** 动作在点击时执行，执行完提示条会自己收起，不需要它再调 consumeMessage */
+    val onAction: (() -> Unit)? = null
+)
 
 data class UiState(
     val tab: Tab = Tab.TODAY,
@@ -157,12 +164,38 @@ class AppViewModel(private val repo: AppRepository) : ViewModel() {
         setDate(Dates.shift(_ui.value.date, days))
     }
 
-    fun toast(text: String) {
-        _ui.value = _ui.value.copy(message = ToastMsg(System.currentTimeMillis(), text))
+    private var lastKnownToday = Dates.today()
+    private var nextToastId = 0L
+
+    /**
+     * 回前台时把「今天」对齐一次。
+     *
+     * App 挂后台过夜之后，[_ui] 里的日期还停在启动那天，早上直接记一笔会落到昨天。
+     * 但用户主动翻到别的日期时不能抢他的选择，所以只在「当前停留的正是上一轮的今天」时顺延。
+     */
+    fun syncDateToToday() {
+        val today = Dates.today()
+        if (today == lastKnownToday) return
+        val rolled = Dates.rolledForward(_ui.value.date, lastKnownToday, today)
+        lastKnownToday = today
+        if (rolled != null) _ui.value = _ui.value.copy(date = rolled)
     }
 
-    fun consumeMessage() {
-        _ui.value = _ui.value.copy(message = null)
+    fun toast(text: String, actionLabel: String? = null, onAction: (() -> Unit)? = null) {
+        _ui.value = _ui.value.copy(
+            message = ToastMsg(
+                // 自增 id 而不是时间戳：同一毫秒里连弹两条时，时间戳会让提示条不刷新
+                id = ++nextToastId,
+                text = text,
+                actionLabel = actionLabel,
+                onAction = onAction,
+            ),
+        )
+    }
+
+    /** 只收起指定那条提示：动作里可能已经弹了新提示，不能把它一起清掉。 */
+    fun consumeMessage(id: Long) {
+        if (_ui.value.message?.id == id) _ui.value = _ui.value.copy(message = null)
     }
 
     fun closeSheet() {
@@ -391,13 +424,14 @@ class AppViewModel(private val repo: AppRepository) : ViewModel() {
             }
 
             val back = form.returnTo
-            if (back != null && newId != null) {
+            val createdId = newId
+            if (back != null && createdId != null) {
                 // 新建完直接回到选择页，并把这份食物算作已选 1 份
                 _ui.value = _ui.value.copy(
                     sheet = Sheet.Select(
                         back.copy(
                             query = "",
-                            qty = back.qty + (newId!! to (back.qty[newId!!] ?: 0) + 1)
+                            qty = back.qty + (createdId to (back.qty[createdId] ?: 0) + 1)
                         )
                     )
                 )
@@ -510,13 +544,44 @@ class AppViewModel(private val repo: AppRepository) : ViewModel() {
     }
 
     fun deleteEntry(date: String, entryId: String) {
+        // 记下原来在第几条：撤销时按原位放回，而不是靠时间戳排序
+        // （同一顿一起入账的几条时间戳相同，排序会把恢复的记录扔到最后）
+        val list = state.value.data.logs[date].orEmpty()
+        val index = list.indexOfFirst { it.id == entryId }
+        val removed = list.getOrNull(index)
         viewModelScope.launch {
             repo.mutate { d ->
-                val list = d.logs[date].orEmpty().filterNot { it.id == entryId }
-                d.copy(logs = d.logs + (date to list)) to Unit
+                val after = d.logs[date].orEmpty().filterNot { it.id == entryId }
+                d.copy(logs = d.logs + (date to after)) to Unit
             }
             closeSheet()
-            toast("已删除这条记录")
+            if (removed == null) {
+                toast("已删除这条记录")
+            } else {
+                toast(
+                    "已删除这条记录",
+                    actionLabel = "撤销",
+                    onAction = { restoreEntry(date, removed, index) },
+                )
+            }
+        }
+    }
+
+    /** 撤销删除：放回原来那条的位置，重复点撤销也不会多出两条。 */
+    private fun restoreEntry(date: String, entry: LogEntry, index: Int) {
+        viewModelScope.launch {
+            repo.mutate { d ->
+                val current = d.logs[date].orEmpty()
+                if (current.any { it.id == entry.id }) {
+                    d to Unit
+                } else {
+                    val restored = current.toMutableList().apply {
+                        add(index.coerceIn(0, size), entry)
+                    }
+                    d.copy(logs = d.logs + (date to restored)) to Unit
+                }
+            }
+            toast("已恢复这条记录")
         }
     }
 
@@ -531,18 +596,17 @@ class AppViewModel(private val repo: AppRepository) : ViewModel() {
                 } else {
                     val now = System.currentTimeMillis()
                     val copies = src.map { it.copy(id = Ids.next(), ts = now) }
+                    // 复制出来的记录也算「吃过这些食物」，否则按使用频次排序时
+                    // 靠复制昨天记录的常吃食物反而排不上去。
+                    val usedFoodIds = copies.map { it.foodId }.toSet()
+                    val newFoods = d.foods.map { f ->
+                        if (f.id in usedFoodIds) f.copy(uses = f.uses + 1, lastUsed = now) else f
+                    }
                     val list = d.logs[date].orEmpty() + copies
-                    d.copy(logs = d.logs + (date to list)) to copies.size
+                    d.copy(logs = d.logs + (date to list), foods = newFoods) to copies.size
                 }
             }
             toast(if (count == 0) "昨天没有记录" else "已复制昨天的 $count 条")
-        }
-    }
-
-    fun clearDay(date: String) {
-        viewModelScope.launch {
-            repo.mutate { d -> d.copy(logs = d.logs - date) to Unit }
-            toast("已清空这一天")
         }
     }
 
@@ -597,7 +661,8 @@ class AppViewModel(private val repo: AppRepository) : ViewModel() {
     fun importText(text: String) {
         val parsed = repo.parseImport(text)
         if (parsed == null) {
-            toast("这个文件读不出来")
+            // 解析不了，或者里面没有 foods/logs/… 这类键（比如随便挑了个 JSON）
+            toast("这个文件读不出来，或者不是 FitLog 备份")
             return
         }
         viewModelScope.launch {

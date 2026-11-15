@@ -267,10 +267,13 @@ fun FoodFormSheet(
     // 所以校验结果必须落在表单里：哪一栏缺东西就把提示写在哪一栏下面。
     var nameError by remember { mutableStateOf(false) }
     var gramError by remember { mutableStateOf(false) }
+    var numberError by remember { mutableStateOf(false) }
     val attemptSave = {
         nameError = form.name.isBlank()
         gramError = form.per100 && (form.gram.toDoubleOrNull() ?: 0.0) <= 0.0
-        if (!nameError && !gramError) onSave()
+        // 营养值填错（比如 12.5.3）以前会被 toDoubleOrNull 兜成 0 静默存下去
+        numberError = listOf(form.kj, form.p, form.c, form.fat).any { it.isBadNumber() }
+        if (!nameError && !gramError && !numberError) onSave()
     }
     val title = if (form.isNew) "新建食物" else "编辑食物"
     val unitLabel = form.unit.ifBlank { "份" }
@@ -399,7 +402,10 @@ fun FoodFormSheet(
                             FieldRow(
                                 label = "能量",
                                 value = form.kj,
-                                onValueChange = { v -> onUpdate { it.copy(kj = v) } },
+                                onValueChange = { v ->
+                                    numberError = false
+                                    onUpdate { it.copy(kj = v) }
+                                },
                                 placeholder = "0",
                                 suffix = "kJ",
                                 keyboardType = KeyboardType.Decimal,
@@ -408,7 +414,10 @@ fun FoodFormSheet(
                             FieldRow(
                                 label = "蛋白",
                                 value = form.p,
-                                onValueChange = { v -> onUpdate { it.copy(p = v) } },
+                                onValueChange = { v ->
+                                    numberError = false
+                                    onUpdate { it.copy(p = v) }
+                                },
                                 placeholder = "0",
                                 suffix = "g",
                                 keyboardType = KeyboardType.Decimal,
@@ -416,7 +425,10 @@ fun FoodFormSheet(
                             FieldRow(
                                 label = "碳水",
                                 value = form.c,
-                                onValueChange = { v -> onUpdate { it.copy(c = v) } },
+                                onValueChange = { v ->
+                                    numberError = false
+                                    onUpdate { it.copy(c = v) }
+                                },
                                 placeholder = "0",
                                 suffix = "g",
                                 keyboardType = KeyboardType.Decimal,
@@ -424,10 +436,19 @@ fun FoodFormSheet(
                             FieldRow(
                                 label = "脂肪",
                                 value = form.fat,
-                                onValueChange = { v -> onUpdate { it.copy(fat = v) } },
+                                onValueChange = { v ->
+                                    numberError = false
+                                    onUpdate { it.copy(fat = v) }
+                                },
                                 placeholder = "0",
                                 suffix = "g",
                                 keyboardType = KeyboardType.Decimal,
+                            )
+                        }
+                        if (numberError) {
+                            IosGroupFooter(
+                                "营养值只能填数字，暂时不知道就先留空",
+                                color = colors.destructive,
                             )
                         }
                         if (form.per100) {
@@ -731,3 +752,12 @@ private fun trimNumber(value: Double): String {
     val r = (value * 10).roundToInt() / 10.0
     return if (r == floor(r)) r.toInt().toString() else r.toString()
 }
+
+/**
+ * 营养值的输入校验：留空表示「以后补」，填了就必须是非负数字。
+ *
+ * 以前 `"12.5.3".toDoubleOrNull()` 得到 null，再被 `?: 0.0` 兜成 0 静默保存，
+ * 用户以为存进去了，实际是一条 0 千卡的食物。输入法允许小数点重复，这条很容易踩。
+ */
+private fun String.isBadNumber(): Boolean =
+    isNotBlank() && (toDoubleOrNull()?.let { it >= 0.0 } != true)
