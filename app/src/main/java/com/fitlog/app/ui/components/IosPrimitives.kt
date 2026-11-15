@@ -98,14 +98,18 @@ fun IosSectionHeader(
     }
 }
 
-/** 分组列表下方的说明文字。 */
+/** 分组列表下方的说明文字。传 [color] 可以把它当表单错误提示用。 */
 @Composable
-fun IosGroupFooter(text: String, modifier: Modifier = Modifier) {
+fun IosGroupFooter(
+    text: String,
+    modifier: Modifier = Modifier,
+    color: Color = Color.Unspecified,
+) {
     val colors = GlasmioTheme.colors
     Text(
         text,
         style = IosTypography.footnote,
-        color = colors.secondaryContent,
+        color = if (color == Color.Unspecified) colors.secondaryContent else color,
         modifier = modifier
             .fillMaxWidth()
             .padding(start = 16.dp, end = 16.dp, top = 7.dp),

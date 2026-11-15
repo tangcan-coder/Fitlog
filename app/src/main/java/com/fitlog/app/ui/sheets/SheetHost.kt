@@ -64,6 +64,7 @@ fun SheetHost(
             visible = visible,
             onDismiss = onDismiss,
             onUpdate = { vm.updateFoodForm(it) },
+            onBasis = { vm.setFoodBasis(it) },
             onSave = { vm.saveFoodForm() },
             onDelete = { vm.deleteFood(current.foodId.orEmpty()) },
         )

@@ -17,8 +17,12 @@ import com.fitlog.app.data.WeightLog
 import com.fitlog.app.domain.BatchImport
 import com.fitlog.app.domain.Dates
 import com.fitlog.app.domain.Ids
+import com.fitlog.app.domain.Nutrients
 import com.fitlog.app.domain.Pinyin
+import com.fitlog.app.domain.per100gFromServing
 import com.fitlog.app.domain.pretty
+import com.fitlog.app.domain.round1
+import com.fitlog.app.domain.servingFromPer100g
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -61,7 +65,13 @@ sealed interface Sheet {
         val name: String = "",
         val cat: String = "主食",
         val unit: String = "份",
+        /** 这一份的实际克数；[per100] 为 true 时必填，是折算的基准 */
         val gram: String = "",
+        /**
+         * 输入口径。true 表示下面四个营养值填的是营养表上的「每 100 g」，
+         * 保存时按 [gram] 折算成一份；false 表示直接填一份的数值（老食物的写法）。
+         */
+        val per100: Boolean = true,
         val kcal: String = "",
         val p: String = "",
         val c: String = "",
@@ -239,6 +249,11 @@ class AppViewModel(private val repo: AppRepository) : ViewModel() {
 
     fun openEditFood(id: String) {
         val f = state.value.data.foods.firstOrNull { it.id == id } ?: return
+        val gram = f.gram?.takeIf { it > 0 }
+        // 有克数的食物按营养表的「每 100 g」回填，用户改克数就能重新折算；
+        // 早年按「一份」直接记下、没有克数的，保持一份口径，不强行要求补克数。
+        val per100Values = per100gFromServing(Nutrients(f.kcal, f.p, f.c, f.fat), gram)
+        val shown = per100Values ?: Nutrients(f.kcal, f.p, f.c, f.fat)
         _ui.value = _ui.value.copy(
             sheet = Sheet.FoodForm(
                 foodId = f.id,
@@ -246,10 +261,11 @@ class AppViewModel(private val repo: AppRepository) : ViewModel() {
                 cat = f.cat,
                 unit = f.unit,
                 gram = f.gram?.pretty()?.takeIf { it != "0" } ?: "",
-                kcal = f.kcal.pretty(),
-                p = f.p.pretty(),
-                c = f.c.pretty(),
-                fat = f.fat.pretty()
+                per100 = per100Values != null,
+                kcal = shown.kcal.pretty(),
+                p = shown.p.pretty(),
+                c = shown.c.pretty(),
+                fat = shown.fat.pretty()
             )
         )
     }
@@ -260,6 +276,44 @@ class AppViewModel(private val repo: AppRepository) : ViewModel() {
         _ui.value = cur.copy(sheet = block(form))
     }
 
+    /**
+     * 切换「营养表（每 100 g）」和「直接填一份」两种口径。
+     *
+     * 这只是换个写法，不应该改变这个食物本身，所以能换算时顺手把界面上的数字也换算过去；
+     * 否则用户会看到同一串数字从「每 100 g」变成「每份」，食物却悄悄变了。
+     * 留空的格子保持留空，不要被换算成 0。
+     */
+    fun setFoodBasis(per100: Boolean) {
+        val cur = _ui.value
+        val form = cur.sheet as? Sheet.FoodForm ?: return
+        if (form.per100 == per100) return
+
+        val gram = form.gram.toDoubleOrNull()?.takeIf { it > 0 }
+        val typed = Nutrients(
+            kcal = form.kcal.toDoubleOrNull() ?: 0.0,
+            p = form.p.toDoubleOrNull() ?: 0.0,
+            c = form.c.toDoubleOrNull() ?: 0.0,
+            fat = form.fat.toDoubleOrNull() ?: 0.0,
+        )
+        val converted = when {
+            gram == null -> null
+            per100 -> per100gFromServing(typed, gram)
+            else -> servingFromPer100g(typed, gram)
+        }
+
+        fun field(raw: String, value: Double): String =
+            if (converted == null || raw.isBlank()) raw else value.pretty()
+
+        val next = form.copy(
+            per100 = per100,
+            kcal = field(form.kcal, converted?.kcal ?: 0.0),
+            p = field(form.p, converted?.p ?: 0.0),
+            c = field(form.c, converted?.c ?: 0.0),
+            fat = field(form.fat, converted?.fat ?: 0.0),
+        )
+        _ui.value = cur.copy(sheet = next)
+    }
+
     fun saveFoodForm() {
         val form = _ui.value.sheet as? Sheet.FoodForm ?: return
         val name = form.name.trim()
@@ -267,8 +321,23 @@ class AppViewModel(private val repo: AppRepository) : ViewModel() {
             toast("先给食物起个名字")
             return
         }
-        val kcal = form.kcal.toDoubleOrNull() ?: 0.0
-        val gram = form.gram.toDoubleOrNull()
+        // 界面上填的是哪一套数字取决于口径：营养表（每 100 g）要先按克数折算成一份，
+        // 存档里永远是「一份」的数值，这样今日页、统计页都不用关心录入方式。
+        val typed = Nutrients(
+            kcal = form.kcal.toDoubleOrNull() ?: 0.0,
+            p = form.p.toDoubleOrNull() ?: 0.0,
+            c = form.c.toDoubleOrNull() ?: 0.0,
+            fat = form.fat.toDoubleOrNull() ?: 0.0,
+        )
+        val gram = form.gram.toDoubleOrNull()?.takeIf { it > 0 }
+        val serving = if (form.per100) {
+            servingFromPer100g(typed, gram) ?: run {
+                toast("这一份多少克要填上，才能按每 100 g 折算")
+                return
+            }
+        } else {
+            typed.round1()
+        }
         val alias = Pinyin.initials(name)
 
         viewModelScope.launch {
@@ -281,10 +350,10 @@ class AppViewModel(private val repo: AppRepository) : ViewModel() {
                         cat = form.cat,
                         unit = form.unit.ifBlank { "份" },
                         gram = gram,
-                        kcal = kcal,
-                        p = form.p.toDoubleOrNull() ?: 0.0,
-                        c = form.c.toDoubleOrNull() ?: 0.0,
-                        fat = form.fat.toDoubleOrNull() ?: 0.0,
+                        kcal = serving.kcal,
+                        p = serving.p,
+                        c = serving.c,
+                        fat = serving.fat,
                         alias = alias,
                         createdAt = System.currentTimeMillis()
                     )
@@ -298,10 +367,10 @@ class AppViewModel(private val repo: AppRepository) : ViewModel() {
                                 cat = form.cat,
                                 unit = form.unit.ifBlank { "份" },
                                 gram = gram,
-                                kcal = kcal,
-                                p = form.p.toDoubleOrNull() ?: 0.0,
-                                c = form.c.toDoubleOrNull() ?: 0.0,
-                                fat = form.fat.toDoubleOrNull() ?: 0.0,
+                                kcal = serving.kcal,
+                                p = serving.p,
+                                c = serving.c,
+                                fat = serving.fat,
                                 alias = alias
                             )
                         } else {
@@ -326,7 +395,14 @@ class AppViewModel(private val repo: AppRepository) : ViewModel() {
                 toast("已加入这一餐")
             } else {
                 closeSheet()
-                toast("已保存")
+                // 折算是隐式的，保存时把结果说出来，用户才能立刻确认数字对不对
+                toast(
+                    if (form.per100 && gram != null) {
+                        "已保存 · 1${form.unit.ifBlank { "份" }} ≈ ${serving.kcal.pretty()} kcal"
+                    } else {
+                        "已保存"
+                    }
+                )
             }
         }
     }

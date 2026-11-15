@@ -8,10 +8,14 @@ import com.fitlog.app.data.Meta
 import com.fitlog.app.data.Profile
 import com.fitlog.app.data.WeightLog
 import com.fitlog.app.domain.BatchImport
+import com.fitlog.app.domain.Nutrients
 import com.fitlog.app.domain.Pinyin
+import com.fitlog.app.domain.per100gFromServing
+import com.fitlog.app.domain.servingFromPer100g
 import com.fitlog.app.domain.targetsOf
 import com.fitlog.app.domain.totalsOf
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -133,5 +137,50 @@ class DomainTest {
         assertTrue("空 gram 的旧备份应当能解析", parsed != null)
         assertEquals("米饭", parsed!!.foods[0].name)
         assertEquals(null, parsed.foods[0].gram)
+    }
+
+    @Test
+    fun `每100克营养按一份克数折算`() {
+        // 营养表：200 kcal / 蛋白 10 g / 碳水 20 g / 脂肪 5 g（每 100 g），这一份 150 g
+        val per100 = Nutrients(kcal = 200.0, p = 10.0, c = 20.0, fat = 5.0)
+        val one = servingFromPer100g(per100, 150.0)!!
+
+        assertEquals(300.0, one.kcal, 0.001)
+        assertEquals(15.0, one.p, 0.001)
+        assertEquals(30.0, one.c, 0.001)
+        assertEquals(7.5, one.fat, 0.001)
+    }
+
+    @Test
+    fun `克数没填或非法时不折算`() {
+        val per100 = Nutrients(kcal = 100.0)
+        assertNull(servingFromPer100g(per100, null))
+        assertNull(servingFromPer100g(per100, 0.0))
+        assertNull(servingFromPer100g(per100, -5.0))
+        assertNull(per100gFromServing(per100, null))
+    }
+
+    @Test
+    fun `小数折算按四舍五入进位`() {
+        // 0.3 g / 100 g × 150 g 应当正好是 0.45 g，但 double 会算成 0.44999999999999996
+        val one = servingFromPer100g(Nutrients(fat = 0.3), 150.0)!!
+        assertEquals(0.5, one.fat, 0.001)
+    }
+
+    @Test
+    fun `每份与每100克两个方向能往返`() {
+        // 模拟真实包装：米饭每 100 g 116 kcal / 蛋白 2.6 / 碳水 25.9 / 脂肪 0.3，一份 150 g
+        val per100 = Nutrients(kcal = 116.0, p = 2.6, c = 25.9, fat = 0.3)
+        val one = servingFromPer100g(per100, 150.0)!!
+        assertEquals(174.0, one.kcal, 0.001)
+
+        // 编辑已有食物时要把「一份」反推回营养表的写法，再折回来不能走样
+        val back = per100gFromServing(one, 150.0)!!
+        assertEquals(116.0, back.kcal, 0.001)
+        assertEquals(2.6, back.p, 0.001)
+        // 只保留一位小数，碳水和脂肪容许 0.1 的误差
+        assertEquals(25.9, back.c, 0.1)
+        assertEquals(0.3, back.fat, 0.1)
+        assertEquals(174.0, servingFromPer100g(back, 150.0)!!.kcal, 0.05)
     }
 }

@@ -29,6 +29,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -38,7 +39,10 @@ import com.fitlog.app.data.Cats
 import com.fitlog.app.data.Food
 import com.fitlog.app.data.Meal
 import com.fitlog.app.domain.Dates
+import com.fitlog.app.domain.Nutrients
 import com.fitlog.app.domain.Pinyin
+import com.fitlog.app.domain.pretty
+import com.fitlog.app.domain.servingFromPer100g
 import com.fitlog.app.ui.SelectState
 import com.fitlog.app.ui.Sheet
 import com.fitlog.app.ui.components.CategoryChips
@@ -49,6 +53,7 @@ import com.fitlog.app.ui.components.FoodEmojiBox
 import com.fitlog.app.ui.components.IosGroupFooter
 import com.fitlog.app.ui.components.IosSectionHeader
 import com.fitlog.app.ui.components.PrimaryCapsule
+import com.fitlog.app.ui.components.SegmentedRow
 import com.fitlog.app.ui.components.groupedRowShape
 import com.fitlog.app.ui.components.StepperPill
 import com.kyant.capsule.ContinuousRoundedRectangle
@@ -103,7 +108,7 @@ fun SelectSheet(
     val chosen = state.qty.filterValues { it > 0 }
     val totalKcal = chosen.entries.sumOf { (id, n) ->
         (foods.firstOrNull { it.id == id }?.kcal ?: 0.0) * n
-    }.toInt()
+    }.roundToInt()
 
     GlasmioBottomSheet(
         visible = visible,
@@ -169,7 +174,7 @@ fun SelectSheet(
                         val count = state.qty[food.id] ?: 0
                         GlasmioListRow(
                             title = food.name,
-                            subtitle = "1${food.unit} · ${food.kcal.toInt()} kcal · " +
+                            subtitle = "1${food.unit} · ${food.kcal.roundToInt()} kcal · " +
                                 "蛋白 ${trimNumber(food.p)}g",
                             showTopSeparator = index > 0,
                             leading = { FoodEmojiBox(food.cat) },
@@ -249,6 +254,7 @@ fun FoodFormSheet(
     visible: Boolean,
     onDismiss: () -> Unit,
     onUpdate: ((Sheet.FoodForm) -> Sheet.FoodForm) -> Unit,
+    onBasis: (Boolean) -> Unit,
     onSave: () -> Unit,
     onDelete: () -> Unit,
 ) {
@@ -256,8 +262,28 @@ fun FoodFormSheet(
     val listState = rememberLazyListState()
     val edge = rememberGlasmioHeaderScrollEdge(listState)
     var confirmDelete by remember { mutableStateOf(false) }
+    // 弹层是独立窗口，Toast 会被整个盖住（用户点保存看起来毫无反应），
+    // 所以校验结果必须落在表单里：哪一栏缺东西就把提示写在哪一栏下面。
+    var nameError by remember { mutableStateOf(false) }
+    var gramError by remember { mutableStateOf(false) }
+    val attemptSave = {
+        nameError = form.name.isBlank()
+        gramError = form.per100 && (form.gram.toDoubleOrNull() ?: 0.0) <= 0.0
+        if (!nameError && !gramError) onSave()
+    }
     val title = if (form.isNew) "新建食物" else "编辑食物"
     val unitLabel = form.unit.ifBlank { "份" }
+    // 实时折算：边改克数或营养表，这里立刻给出「一份」的结果，存之前就能对一遍。
+    val gram = form.gram.toDoubleOrNull()?.takeIf { it > 0 }
+    val serving = servingFromPer100g(
+        Nutrients(
+            kcal = form.kcal.toDoubleOrNull() ?: 0.0,
+            p = form.p.toDoubleOrNull() ?: 0.0,
+            c = form.c.toDoubleOrNull() ?: 0.0,
+            fat = form.fat.toDoubleOrNull() ?: 0.0,
+        ),
+        gram,
+    )
 
     GlasmioBottomSheet(
         visible = visible,
@@ -272,7 +298,7 @@ fun FoodFormSheet(
                     GlasmioSheetButton(onClick = onDismiss) { Text("取消") }
                 },
                 actions = {
-                    GlasmioSheetButton(onClick = onSave) { Text("保存") }
+                    GlasmioSheetButton(onClick = attemptSave) { Text("保存") }
                 },
             )
         },
@@ -291,12 +317,20 @@ fun FoodFormSheet(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 item(key = "name") {
-                    GlasmioGroupedList {
-                        GlasmioTextField(
-                            value = form.name,
-                            onValueChange = { v -> onUpdate { it.copy(name = v) } },
-                            placeholder = "名称，例如：香菇滑鸡",
-                        )
+                    Column {
+                        GlasmioGroupedList {
+                            GlasmioTextField(
+                                value = form.name,
+                                onValueChange = { v ->
+                                    nameError = false
+                                    onUpdate { it.copy(name = v) }
+                                },
+                                placeholder = "名称，例如：香菇滑鸡",
+                            )
+                        }
+                        if (nameError) {
+                            IosGroupFooter("先把名字填上", color = colors.destructive)
+                        }
                     }
                 }
 
@@ -325,19 +359,40 @@ fun FoodFormSheet(
                             FieldRow(
                                 label = "克数",
                                 value = form.gram,
-                                onValueChange = { v -> onUpdate { it.copy(gram = v) } },
-                                placeholder = "可空",
+                                onValueChange = { v ->
+                                    gramError = false
+                                    onUpdate { it.copy(gram = v) }
+                                },
+                                placeholder = if (form.per100) "例如 150" else "可空",
                                 suffix = "g",
                                 keyboardType = KeyboardType.Decimal,
                             )
                         }
-                        IosGroupFooter("按「份」记录比按克省事，克数只是备注。")
+                        IosGroupFooter(
+                            when {
+                                gramError -> "这一份多少克要填上，营养表就是按它折算的。"
+                                form.per100 -> "营养表上的「每 100 克」乘上这里的克数再除以 100，就是一份的营养。"
+                                else -> "按「份」记录比按克省事，克数只是备注。"
+                            },
+                            color = if (gramError) colors.destructive else Color.Unspecified,
+                        )
                     }
                 }
 
                 item(key = "nutrition") {
                     Column {
-                        IosSectionHeader("营养（按 1$unitLabel 算）")
+                        IosSectionHeader("营养")
+                        // 包装上的营养表一律按每 100 g 标，先按表填、填克数自动折算，比心算快也不容易错。
+                        // 早年按「一份」记下的食物没有克数，切到「直接填一份」就能保持原样。
+                        SegmentedRow(
+                            options = listOf("100g" to "营养表（每 100 g）", "serving" to "直接填一份"),
+                            selected = if (form.per100) "100g" else "serving",
+                            onSelect = { v ->
+                                gramError = false
+                                onBasis(v == "100g")
+                            },
+                        )
+                        Spacer(Modifier.height(10.dp))
                         GlasmioGroupedList {
                             FieldRow(
                                 label = "热量",
@@ -373,7 +428,13 @@ fun FoodFormSheet(
                                 keyboardType = KeyboardType.Decimal,
                             )
                         }
-                        IosGroupFooter("只填热量也能保存，另外三项以后随时补。")
+                        if (form.per100) {
+                            Spacer(Modifier.height(10.dp))
+                            NutritionPreviewCard(form = form, serving = serving, gram = gram)
+                            IosGroupFooter("只填热量也能保存，另外三项以后随时补。")
+                        } else {
+                            IosGroupFooter("按 1$unitLabel 算，只填热量也能保存。")
+                        }
                     }
                 }
 
@@ -418,6 +479,59 @@ fun FoodFormSheet(
             ),
         ),
     )
+}
+
+/**
+ * 「一份」换算结果的实时预览。
+ *
+ * 折算公式是隐式的，如果只在保存后才生效，用户没法确认自己填的是 100 g 还是一份。
+ * 这里把结果摊开（一份多少千卡、三项宏量各多少克），和列表里显示的口径完全一致。
+ */
+@Composable
+private fun NutritionPreviewCard(
+    form: Sheet.FoodForm,
+    serving: Nutrients?,
+    gram: Double?,
+) {
+    val colors = GlasmioTheme.colors
+    val unit = form.unit.ifBlank { "份" }
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(ContinuousRoundedRectangle(20.dp))
+            .background(colors.elevatedBackground)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier
+                    .size(6.dp)
+                    .clip(CircleShape)
+                    .background(colors.accent),
+            )
+            Spacer(Modifier.size(8.dp))
+            Text(
+                if (serving != null) {
+                    "1$unit ≈ ${serving.kcal.pretty()} kcal"
+                } else {
+                    "填上克数，这里算出这一份的营养"
+                },
+                style = IosTypography.subheadline,
+                color = colors.content,
+            )
+        }
+        Spacer(Modifier.height(5.dp))
+        Text(
+            if (serving != null && gram != null) {
+                "${gram.pretty()} g · 蛋白 ${serving.p.pretty()} g · " +
+                    "碳水 ${serving.c.pretty()} g · 脂肪 ${serving.fat.pretty()} g"
+            } else {
+                "每 100 g 的数值 × 克数 ÷ 100"
+            },
+            style = IosTypography.footnote,
+            color = colors.secondaryContent,
+        )
+    }
 }
 
 /* ============================ 修改某条记录 ============================ */
@@ -483,7 +597,7 @@ fun EntrySheet(
             }
 
             Text(
-                "约 ${kcal.toInt()} kcal · 蛋白 ${trimNumber(sheet.per.p * sheet.qty)}g · " +
+                "约 ${kcal.roundToInt()} kcal · 蛋白 ${trimNumber(sheet.per.p * sheet.qty)}g · " +
                     "碳水 ${trimNumber(sheet.per.c * sheet.qty)}g · " +
                     "脂肪 ${trimNumber(sheet.per.fat * sheet.qty)}g",
                 style = IosTypography.subheadline,

@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.sp
 import com.fitlog.app.data.Cats
 import com.fitlog.app.data.Food
 import com.fitlog.app.domain.Pinyin
+import com.fitlog.app.domain.pretty
 import com.fitlog.app.ui.components.CategoryChips
 import com.fitlog.app.ui.components.EmptyHint
 import com.fitlog.app.ui.components.FitSearchField
@@ -41,6 +42,7 @@ import io.github.neoruaa.glasmio.ui.GlasmioGroupedList
 import io.github.neoruaa.glasmio.ui.GlasmioIconButton
 import io.github.neoruaa.glasmio.ui.GlasmioListRow
 import io.github.neoruaa.glasmio.ui.glasmioGroupedListBackground
+import kotlin.math.roundToInt
 
 private val SectionGap = 16.dp
 
@@ -125,7 +127,10 @@ fun LibraryScreen(
             itemsIndexed(visible, key = { _, food -> food.id }) { index, food ->
                 GlasmioListRow(
                     title = food.name,
-                    subtitle = "1${food.unit} · ${food.kcal.toInt()} kcal" +
+                    // 有克数时一并显示，录入时按每 100 g 折算的，用户能顺手核对一遍
+                    subtitle = "1${food.unit}" +
+                        food.gram?.takeIf { it > 0 }?.let { " · ${it.pretty()} g" }.orEmpty() +
+                        " · ${food.kcal.roundToInt()} kcal" +
                         if (food.uses > 0) " · 用过 ${food.uses} 次" else "",
                     showTopSeparator = index > 0,
                     onClick = { onEdit(food.id) },

@@ -34,6 +34,7 @@ import io.github.neoruaa.glasmio.ui.GlasmioButtonSize
 import io.github.neoruaa.glasmio.ui.GlasmioGroupedList
 import io.github.neoruaa.glasmio.ui.GlasmioIconButton
 import io.github.neoruaa.glasmio.ui.GlasmioListRow
+import kotlin.math.roundToInt
 
 /**
  * 「今日」：iOS 健康风格的一页。
@@ -133,7 +134,7 @@ private fun MealSection(
     onEntryClick: (LogEntry) -> Unit,
 ) {
     val colors = GlasmioTheme.colors
-    val mealKcal = entries.sumOf { it.kcal }.toInt()
+    val mealKcal = entries.sumOf { it.kcal }.roundToInt()
 
     Column {
         Row(
@@ -168,7 +169,7 @@ private fun MealSection(
                     GlasmioListRow(
                         title = entry.name,
                         subtitle = "${entry.qty.pretty()}${entry.unit} · 蛋白 ${entry.p.pretty()}g",
-                        detail = "${entry.kcal.toInt()} kcal",
+                        detail = "${entry.kcal.roundToInt()} kcal",
                         showTopSeparator = index > 0,
                         onClick = { onEntryClick(entry) },
                     )
