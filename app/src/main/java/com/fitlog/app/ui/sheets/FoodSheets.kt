@@ -41,6 +41,7 @@ import com.fitlog.app.data.Meal
 import com.fitlog.app.domain.Dates
 import com.fitlog.app.domain.Nutrients
 import com.fitlog.app.domain.Pinyin
+import com.fitlog.app.domain.kcalFromKj
 import com.fitlog.app.domain.pretty
 import com.fitlog.app.domain.servingFromPer100g
 import com.fitlog.app.ui.SelectState
@@ -274,10 +275,11 @@ fun FoodFormSheet(
     val title = if (form.isNew) "新建食物" else "编辑食物"
     val unitLabel = form.unit.ifBlank { "份" }
     // 实时折算：边改克数或营养表，这里立刻给出「一份」的结果，存之前就能对一遍。
+    // 能量输入是 kJ（营养表的写法），折算成一份之后再换成 kcal 显示。
     val gram = form.gram.toDoubleOrNull()?.takeIf { it > 0 }
     val serving = servingFromPer100g(
         Nutrients(
-            kcal = form.kcal.toDoubleOrNull() ?: 0.0,
+            kcal = kcalFromKj(form.kj.toDoubleOrNull() ?: 0.0),
             p = form.p.toDoubleOrNull() ?: 0.0,
             c = form.c.toDoubleOrNull() ?: 0.0,
             fat = form.fat.toDoubleOrNull() ?: 0.0,
@@ -395,11 +397,11 @@ fun FoodFormSheet(
                         Spacer(Modifier.height(10.dp))
                         GlasmioGroupedList {
                             FieldRow(
-                                label = "热量",
-                                value = form.kcal,
-                                onValueChange = { v -> onUpdate { it.copy(kcal = v) } },
+                                label = "能量",
+                                value = form.kj,
+                                onValueChange = { v -> onUpdate { it.copy(kj = v) } },
                                 placeholder = "0",
-                                suffix = "kcal",
+                                suffix = "kJ",
                                 keyboardType = KeyboardType.Decimal,
                                 showTopSeparator = false,
                             )
@@ -431,9 +433,9 @@ fun FoodFormSheet(
                         if (form.per100) {
                             Spacer(Modifier.height(10.dp))
                             NutritionPreviewCard(form = form, serving = serving, gram = gram)
-                            IosGroupFooter("只填热量也能保存，另外三项以后随时补。")
+                            IosGroupFooter("能量照营养表填 kJ（1 kcal ≈ 4.184 kJ），只能填能量也能保存。")
                         } else {
-                            IosGroupFooter("按 1$unitLabel 算，只填热量也能保存。")
+                            IosGroupFooter("按 1$unitLabel 算，能量单位和营养表一致，只填能量也能保存。")
                         }
                     }
                 }
@@ -683,7 +685,8 @@ fun BatchSheet(
                 .padding(top = pad.calculateTopPadding() + 8.dp, bottom = pad.calculateBottomPadding() + 16.dp),
         ) {
             Text(
-                "一行一条，空格或逗号分隔：名称 热量 蛋白 碳水 脂肪。蛋白 / 碳水 / 脂肪可以不填。",
+                "一行一条，空格或逗号分隔：名称 能量 蛋白 碳水 脂肪。" +
+                    "能量按 kcal 写，营养表上抄来的就写成 326kj；后面三项可以不填。",
                 style = IosTypography.footnote,
                 color = colors.secondaryContent,
             )
@@ -709,7 +712,7 @@ fun BatchSheet(
                     decorationBox = { innerTextField ->
                         if (text.isEmpty()) {
                             Text(
-                                "白米饭 230 4.3 48 0.3\n水煮蛋 78 6.3 0.6 5.3\n无糖豆浆 60 5.2 1.8 2.5\n苹果 95 0.5 25 0.3",
+                                "白米饭 230 4.3 48 0.3\n水煮蛋 326kj 6.3 0.6 5.3\n无糖豆浆 60 5.2 1.8 2.5\n苹果 95 0.5 25 0.3",
                                 style = IosTypography.body,
                                 color = colors.tertiaryContent,
                             )

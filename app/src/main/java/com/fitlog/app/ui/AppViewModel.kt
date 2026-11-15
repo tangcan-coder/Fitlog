@@ -19,6 +19,9 @@ import com.fitlog.app.domain.Dates
 import com.fitlog.app.domain.Ids
 import com.fitlog.app.domain.Nutrients
 import com.fitlog.app.domain.Pinyin
+import com.fitlog.app.domain.kcalFromKj
+import com.fitlog.app.domain.kjFromKcal
+import com.fitlog.app.domain.kjText
 import com.fitlog.app.domain.per100gFromServing
 import com.fitlog.app.domain.pretty
 import com.fitlog.app.domain.round1
@@ -68,11 +71,12 @@ sealed interface Sheet {
         /** 这一份的实际克数；[per100] 为 true 时必填，是折算的基准 */
         val gram: String = "",
         /**
-         * 输入口径。true 表示下面四个营养值填的是营养表上的「每 100 g」，
+         * 输入口径。true 表示下面几个营养值填的是营养表上的「每 100 g」，
          * 保存时按 [gram] 折算成一份；false 表示直接填一份的数值（老食物的写法）。
          */
         val per100: Boolean = true,
-        val kcal: String = "",
+        /** 能量按营养表的单位填 kJ，保存时折算成 kcal（1 kcal = 4.184 kJ） */
+        val kj: String = "",
         val p: String = "",
         val c: String = "",
         val fat: String = "",
@@ -262,7 +266,8 @@ class AppViewModel(private val repo: AppRepository) : ViewModel() {
                 unit = f.unit,
                 gram = f.gram?.pretty()?.takeIf { it != "0" } ?: "",
                 per100 = per100Values != null,
-                kcal = shown.kcal.pretty(),
+                // 能量在表单里显示成 kJ，正好是包装营养表上的原样
+                kj = kjFromKcal(shown.kcal).kjText(),
                 p = shown.p.pretty(),
                 c = shown.c.pretty(),
                 fat = shown.fat.pretty()
@@ -289,14 +294,18 @@ class AppViewModel(private val repo: AppRepository) : ViewModel() {
         if (form.per100 == per100) return
 
         val gram = form.gram.toDoubleOrNull()?.takeIf { it > 0 }
+        // 能量的已知单位是 kJ，就在 kJ 空间里直接乘除以克数，避免「kJ→kcal→kJ」的二次取整漂移；
+        // 三项宏量本来就是克，走 Nutrients 那套换算。
+        val factor = gram?.let { if (per100) 100.0 / it else it / 100.0 }
+        val typedKj = form.kj.toDoubleOrNull() ?: 0.0
         val typed = Nutrients(
-            kcal = form.kcal.toDoubleOrNull() ?: 0.0,
+            kcal = kcalFromKj(typedKj),
             p = form.p.toDoubleOrNull() ?: 0.0,
             c = form.c.toDoubleOrNull() ?: 0.0,
             fat = form.fat.toDoubleOrNull() ?: 0.0,
         )
         val converted = when {
-            gram == null -> null
+            factor == null -> null
             per100 -> per100gFromServing(typed, gram)
             else -> servingFromPer100g(typed, gram)
         }
@@ -306,7 +315,7 @@ class AppViewModel(private val repo: AppRepository) : ViewModel() {
 
         val next = form.copy(
             per100 = per100,
-            kcal = field(form.kcal, converted?.kcal ?: 0.0),
+            kj = if (factor == null || form.kj.isBlank()) form.kj else (typedKj * factor).kjText(),
             p = field(form.p, converted?.p ?: 0.0),
             c = field(form.c, converted?.c ?: 0.0),
             fat = field(form.fat, converted?.fat ?: 0.0),
@@ -324,7 +333,7 @@ class AppViewModel(private val repo: AppRepository) : ViewModel() {
         // 界面上填的是哪一套数字取决于口径：营养表（每 100 g）要先按克数折算成一份，
         // 存档里永远是「一份」的数值，这样今日页、统计页都不用关心录入方式。
         val typed = Nutrients(
-            kcal = form.kcal.toDoubleOrNull() ?: 0.0,
+            kcal = kcalFromKj(form.kj.toDoubleOrNull() ?: 0.0),
             p = form.p.toDoubleOrNull() ?: 0.0,
             c = form.c.toDoubleOrNull() ?: 0.0,
             fat = form.fat.toDoubleOrNull() ?: 0.0,

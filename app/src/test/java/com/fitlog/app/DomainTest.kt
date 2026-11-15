@@ -10,6 +10,9 @@ import com.fitlog.app.data.WeightLog
 import com.fitlog.app.domain.BatchImport
 import com.fitlog.app.domain.Nutrients
 import com.fitlog.app.domain.Pinyin
+import com.fitlog.app.domain.kcalFromKj
+import com.fitlog.app.domain.kjFromKcal
+import com.fitlog.app.domain.kjText
 import com.fitlog.app.domain.per100gFromServing
 import com.fitlog.app.domain.servingFromPer100g
 import com.fitlog.app.domain.targetsOf
@@ -165,6 +168,36 @@ class DomainTest {
         // 0.3 g / 100 g × 150 g 应当正好是 0.45 g，但 double 会算成 0.44999999999999996
         val one = servingFromPer100g(Nutrients(fat = 0.3), 150.0)!!
         assertEquals(0.5, one.fat, 0.001)
+    }
+
+    @Test
+    fun `能量按每千卡4184千焦折算`() {
+        assertEquals(4.184, kjFromKcal(1.0), 0.0001)
+        assertEquals(100.0, kcalFromKj(418.4), 0.0001)
+
+        // 营养表：每 100 g 690 kJ，这一份 150 g -> 690/4.184*1.5 ≈ 247.4 kcal
+        val per100 = Nutrients(kcal = kcalFromKj(690.0))
+        assertEquals(247.4, servingFromPer100g(per100, 150.0)!!.kcal, 0.05)
+    }
+
+    @Test
+    fun `能量输入框取整显示，回填不会掉成6899`() {
+        assertEquals("690", kjFromKcal(kcalFromKj(690.0)).kjText())
+
+        // 存档里只有一位小数的 kcal：690 kJ → 一份 247.4 kcal，反推回来仍应显示 690
+        val per100Kcal = per100gFromServing(Nutrients(kcal = 247.4), 150.0)!!.kcal
+        assertEquals("690", kjFromKcal(per100Kcal).kjText())
+    }
+
+    @Test
+    fun `批量导入支持带kj的能量`() {
+        // 带 kj 后缀按 kJ 换算；裸数字仍然是 kcal（否则旧文本会被读小四倍）
+        val kjLine = BatchImport.parse("水煮蛋 326kj 6.3 0.6 5.3")
+        assertEquals(1, kjLine.foods.size)
+        assertEquals(77.9, kjLine.foods[0].kcal, 0.1)
+
+        val kcalLine = BatchImport.parse("白米饭 230 4.3 48 0.3")
+        assertEquals(230.0, kcalLine.foods[0].kcal, 0.001)
     }
 
     @Test

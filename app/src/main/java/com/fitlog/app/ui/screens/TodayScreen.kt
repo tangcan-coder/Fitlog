@@ -22,8 +22,7 @@ import com.fitlog.app.domain.Dates
 import com.fitlog.app.domain.pretty
 import com.fitlog.app.domain.targetsOf
 import com.fitlog.app.domain.totalsOf
-import com.fitlog.app.ui.components.CalorieRingCard
-import com.fitlog.app.ui.components.MacroCard
+import com.fitlog.app.ui.components.NutritionRingsCard
 import com.fitlog.app.ui.components.TinyAddButton
 import io.github.neoruaa.glasmio.core.GlasmioTheme
 import io.github.neoruaa.glasmio.core.IosTypography
@@ -78,12 +77,9 @@ fun TodayScreen(
             }
         },
     ) {
-        item(key = "calories") {
-            CalorieRingCard(consumed = totals.kcal, target = targets.kcal)
-        }
-
-        item(key = "macros") {
-            MacroCard(totals = totals, targets = targets)
+        item(key = "nutrition") {
+            // 热量和三项宏量合成一张卡：数值在左、三个同心环在右，文字不再压在环上
+            NutritionRingsCard(totals = totals, targets = targets)
         }
 
         Meal.all.forEach { meal ->

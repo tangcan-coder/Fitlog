@@ -59,3 +59,26 @@ fun per100gFromServing(serving: Nutrients, gram: Double?): Nutrients? {
     if (gram == null || gram <= 0) return null
     return serving.scaled(100.0 / gram).round1()
 }
+
+/* ----------------------------- 能量单位 ----------------------------- */
+
+/**
+ * 中国/欧盟的预包装食品营养表一律标「能量 kJ」，而 App 里所有统计、目标、图表都按 kcal 算。
+ * 两个单位之间只差一个常数，但输入和展示必须分开：
+ * 表单里让用户照抄 kJ，存档里永远是 kcal，这样翻看历史时不用来回换算。
+ */
+const val KJ_PER_KCAL = 4.184
+
+fun kcalFromKj(kj: Double): Double = kj / KJ_PER_KCAL
+
+fun kjFromKcal(kcal: Double): Double = kcal * KJ_PER_KCAL
+
+/**
+ * 能量在输入框里的显示值。
+ *
+ * 营养表上的 kJ 基本都是整数，取整显示还能顺手抹掉一个来回抖动：
+ * 存档里 kcal 只保留一位小数（690 kJ → 164.9 kcal → 一份 247.4 kcal），
+ * 反推回来是 689.94 kJ，不取整的话用户会看到自己明明填了 690 却变成 689.9。
+ */
+fun Double.kjText(): String = kotlin.math.round(this).toInt().toString()
+

@@ -14,10 +14,9 @@ import com.fitlog.app.data.LogEntry
 import com.fitlog.app.data.Profile
 import com.fitlog.app.domain.Totals
 import com.fitlog.app.domain.targetsOf
-import com.fitlog.app.ui.components.CalorieRingCard
 import com.fitlog.app.ui.components.DaySummaryCard
 import com.fitlog.app.ui.components.HistoryCalendarCard
-import com.fitlog.app.ui.components.MacroCard
+import com.fitlog.app.ui.components.NutritionRingsCard
 import com.fitlog.app.ui.components.WeightLineChart
 import com.fitlog.app.ui.theme.FitLogTheme
 import io.github.neoruaa.glasmio.core.GlasmioTheme
@@ -68,27 +67,30 @@ private fun PreviewPage(dark: Boolean, content: @Composable () -> Unit) {
     }
 }
 
-@Preview(name = "热量环 · 浅色", showBackground = true)
+@Preview(name = "今日概览 · 浅色", showBackground = true)
 @Composable
-private fun CalorieRingLightPreview() {
+private fun NutritionRingsLightPreview() {
     PreviewPage(dark = false) {
-        CalorieRingCard(consumed = demoTotals.kcal, target = demoTargets.kcal)
+        NutritionRingsCard(totals = demoTotals, targets = demoTargets)
     }
 }
 
-@Preview(name = "热量环 · 深色", showBackground = true)
+@Preview(name = "今日概览 · 深色", showBackground = true)
 @Composable
-private fun CalorieRingDarkPreview() {
+private fun NutritionRingsDarkPreview() {
     PreviewPage(dark = true) {
-        CalorieRingCard(consumed = demoTotals.kcal, target = demoTargets.kcal)
+        NutritionRingsCard(totals = demoTotals, targets = demoTargets)
     }
 }
 
-@Preview(name = "宏量卡 · 浅色", showBackground = true)
+@Preview(name = "今日概览 · 超标", showBackground = true)
 @Composable
-private fun MacroCardPreview() {
+private fun NutritionRingsOverPreview() {
     PreviewPage(dark = false) {
-        MacroCard(totals = demoTotals, targets = demoTargets)
+        NutritionRingsCard(
+            totals = Totals(kcal = 1980, protein = 158.2, carbs = 210.4, fat = 62.7),
+            targets = demoTargets,
+        )
     }
 }
 

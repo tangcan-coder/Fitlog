@@ -1,9 +1,12 @@
 package com.fitlog.app.ui.components
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -506,170 +509,226 @@ private fun StepperButton(
 
 /* ------------------------------ 图表 ------------------------------ */
 
-/** 热量环 + 剩余热量。 */
+/* ------------------------- 今日概览：同心圆环 ------------------------- */
+
+/**
+ * 今日营养概览：左边四行数值（热量 / 蛋白 / 碳水 / 脂肪），右边三圈同心环。
+ *
+ * 之前是「一个大热量环 + 一张宏量卡」，热量数字和「已摄入 · 目标」压在环上，
+ * 字和环互相打架。现在参考活动圆环的版式：数值全部在环外、环只表达比例，
+ * 三个环从外到内依次是蛋白、碳水、脂肪，颜色和左侧色条一一对应。
+ *
+ * 热量不单独占一个环——它是总量而不是「完成度」，用第一行的大号数字
+ * 加底部「还可以吃」胶囊表达，信息层级反而更清楚。
+ */
 @Composable
-fun CalorieRingCard(
-    consumed: Int,
-    target: Int,
+fun NutritionRingsCard(
+    totals: Totals,
+    targets: Targets,
     modifier: Modifier = Modifier,
-    ringSize: Dp = 196.dp,
-    stroke: Dp = 17.dp,
+    ringSize: Dp = 132.dp,
 ) {
     val colors = GlasmioTheme.colors
     val dark = colors.isDark
-    val remaining = target - consumed
+    val remaining = targets.kcal - totals.kcal
     val over = remaining < 0
-    val progress = if (target <= 0) 0f else (consumed.toFloat() / target).coerceIn(0f, 1f)
-    val tint = if (over) FitPalette.danger(dark) else FitPalette.accent(dark)
+    val danger = FitPalette.danger(dark)
 
-    Box(
-        modifier
-            .fillMaxWidth()
-            .clip(ContinuousRoundedRectangle(28.dp))
-            .background(colors.elevatedBackground)
-            .padding(vertical = 24.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Box(Modifier.size(ringSize), contentAlignment = Alignment.Center) {
-            Canvas(Modifier.fillMaxSize()) {
-                val strokePx = stroke.toPx()
-                val inset = strokePx / 2f
-                val arcSize = Size(size.width - strokePx, size.height - strokePx)
-                drawArc(
-                    color = colors.systemGray5,
-                    startAngle = -90f,
-                    sweepAngle = 360f,
-                    useCenter = false,
-                    topLeft = Offset(inset, inset),
-                    size = arcSize,
-                    style = Stroke(width = strokePx, cap = StrokeCap.Round),
-                )
-                if (progress > 0.002f) {
-                    drawArc(
-                        brush = Brush.linearGradient(
-                            colors = listOf(tint.copy(alpha = 0.72f), tint),
-                            start = Offset(0f, 0f),
-                            end = Offset(size.width, size.height),
-                        ),
-                        startAngle = -90f,
-                        sweepAngle = 360f * progress,
-                        useCenter = false,
-                        topLeft = Offset(inset, inset),
-                        size = arcSize,
-                        style = Stroke(width = strokePx, cap = StrokeCap.Round),
-                    )
-                }
-            }
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    abs(remaining).toString(),
-                    style = IosTypography.largeTitle,
-                    fontWeight = FontWeight(700),
-                    color = if (over) tint else colors.content,
-                )
-                Text(
-                    if (over) "已超出目标" else "还可以吃",
-                    style = IosTypography.subheadline,
-                    color = if (over) tint else colors.secondaryContent,
-                )
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    "已摄入 $consumed · 目标 $target kcal",
-                    style = IosTypography.caption2,
-                    color = colors.tertiaryContent,
-                )
-            }
-        }
-    }
-}
-
-/** 蛋白 / 碳水 / 脂肪三栏。 */
-@Composable
-fun MacroCard(totals: Totals, targets: Targets, modifier: Modifier = Modifier) {
-    val colors = GlasmioTheme.colors
-    Row(
+    Column(
         modifier
             .fillMaxWidth()
             .clip(ContinuousRoundedRectangle(26.dp))
             .background(colors.elevatedBackground)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .padding(horizontal = 16.dp, vertical = 16.dp),
     ) {
-        MacroColumn("蛋白", totals.protein, targets.protein, FitPalette.protein, Modifier.weight(1f))
-        MacroDivider()
-        MacroColumn("碳水", totals.carbs, targets.carbs, FitPalette.carbs, Modifier.weight(1f))
-        MacroDivider()
-        MacroColumn("脂肪", totals.fat, targets.fat, FitPalette.fat, Modifier.weight(1f))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(
+                Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                StatLine(
+                    label = "热量",
+                    value = totals.kcal.toString(),
+                    target = targets.kcal,
+                    unit = "千卡",
+                    color = if (over) danger else colors.accent,
+                    over = over,
+                    emphasize = true,
+                )
+                StatLine(
+                    label = "蛋白",
+                    value = formatGrams(totals.protein),
+                    target = targets.protein,
+                    unit = "克",
+                    color = FitPalette.protein,
+                    over = targets.protein > 0 && totals.protein > targets.protein,
+                )
+                StatLine(
+                    label = "碳水",
+                    value = formatGrams(totals.carbs),
+                    target = targets.carbs,
+                    unit = "克",
+                    color = FitPalette.carbs,
+                    over = targets.carbs > 0 && totals.carbs > targets.carbs,
+                )
+                StatLine(
+                    label = "脂肪",
+                    value = formatGrams(totals.fat),
+                    target = targets.fat,
+                    unit = "克",
+                    color = FitPalette.fat,
+                    over = targets.fat > 0 && totals.fat > targets.fat,
+                )
+            }
+            Spacer(Modifier.width(14.dp))
+            MacroRings(
+                protein = ratioOf(totals.protein, targets.protein),
+                carbs = ratioOf(totals.carbs, targets.carbs),
+                fat = ratioOf(totals.fat, targets.fat),
+                overProtein = targets.protein > 0 && totals.protein > targets.protein,
+                overCarbs = targets.carbs > 0 && totals.carbs > targets.carbs,
+                overFat = targets.fat > 0 && totals.fat > targets.fat,
+                modifier = Modifier.size(ringSize),
+            )
+        }
+        Spacer(Modifier.height(14.dp))
+        RemainingChip(remaining = remaining, over = over)
     }
 }
 
+private fun ratioOf(value: Double, target: Int): Float =
+    if (target <= 0) 0f else (value / target).toFloat().coerceIn(0f, 1f)
+
+/** 一行「▌标签 数值 / 目标 单位」；超标时整行转红，和热量余额保持同一套语义。 */
 @Composable
-private fun MacroDivider() {
+private fun StatLine(
+    label: String,
+    value: String,
+    target: Int,
+    unit: String,
+    color: Color,
+    over: Boolean,
+    emphasize: Boolean = false,
+) {
     val colors = GlasmioTheme.colors
-    Box(
-        Modifier
-            .padding(horizontal = 10.dp)
-            .width(1.dp)
-            .height(42.dp)
-            .background(colors.separator),
-    )
+    val tint = if (over) FitPalette.danger(colors.isDark) else color
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            Modifier
+                .width(3.dp)
+                .height(if (emphasize) 28.dp else 22.dp)
+                .clip(Capsule())
+                .background(tint),
+        )
+        Spacer(Modifier.width(9.dp))
+        Text(label, style = IosTypography.footnote, color = colors.secondaryContent)
+        Spacer(Modifier.width(7.dp))
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(
+                value,
+                style = if (emphasize) IosTypography.title2 else IosTypography.title3,
+                fontWeight = FontWeight(600),
+                color = if (over) tint else colors.content,
+                maxLines = 1,
+            )
+            Text(
+                " / $target $unit",
+                style = IosTypography.caption2,
+                color = colors.tertiaryContent,
+                maxLines = 1,
+                modifier = Modifier.padding(bottom = 3.dp),
+            )
+        }
+    }
 }
 
+/**
+ * 三圈同心环：外圈蛋白、中圈碳水、内圈脂肪。
+ *
+ * 进度用动画推过去（切日期、记完一条都能看到环长出来），
+ * 轨道和进度都是 Canvas 画的，不需要图片资源，也不走玻璃采样。
+ */
 @Composable
-private fun MacroColumn(
-    label: String,
-    value: Double,
-    target: Int,
-    color: Color,
+private fun MacroRings(
+    protein: Float,
+    carbs: Float,
+    fat: Float,
+    overProtein: Boolean,
+    overCarbs: Boolean,
+    overFat: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val colors = GlasmioTheme.colors
-    val frac = if (target <= 0) 0f else (value / target).toFloat().coerceIn(0f, 1f)
-    // 超出目标时整块变红，和热量环的「已超标」保持同一套语义。
-    val over = target > 0 && value > target
-    val barColor = if (over) FitPalette.danger(colors.isDark) else color
-    Column(modifier) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier
-                    .size(6.dp)
-                    .clip(CircleShape)
-                    .background(barColor),
+    val dark = colors.isDark
+    val danger = FitPalette.danger(dark)
+    val proteinProgress by animateFloatAsState(protein, tween(700, easing = FastOutSlowInEasing), label = "proteinRing")
+    val carbsProgress by animateFloatAsState(carbs, tween(700, easing = FastOutSlowInEasing), label = "carbsRing")
+    val fatProgress by animateFloatAsState(fat, tween(700, easing = FastOutSlowInEasing), label = "fatRing")
+    val track = colors.systemGray5
+
+    Canvas(modifier) {
+        val stroke = 10.dp.toPx()
+        // 圈与圈之间留一点缝：三个值都很小时（比如刚记录一项），
+        // 贴在一起的圆头会糊成一块色斑，分开才能看出是三个环。
+        val gap = 3.dp.toPx()
+        val step = stroke + gap
+        val outer = size.minDimension / 2f - stroke / 2f
+
+        fun ring(progress: Float, color: Color, radius: Float) {
+            val topLeft = Offset(center.x - radius, center.y - radius)
+            val diameter = Size(radius * 2f, radius * 2f)
+            drawArc(
+                color = track,
+                startAngle = -90f,
+                sweepAngle = 360f,
+                useCenter = false,
+                topLeft = topLeft,
+                size = diameter,
+                style = Stroke(width = stroke, cap = StrokeCap.Round),
             )
-            Spacer(Modifier.width(5.dp))
-            Text(label, style = IosTypography.footnote, color = colors.secondaryContent)
+            if (progress > 0.002f) {
+                drawArc(
+                    color = color,
+                    startAngle = -90f,
+                    sweepAngle = 360f * progress,
+                    useCenter = false,
+                    topLeft = topLeft,
+                    size = diameter,
+                    style = Stroke(width = stroke, cap = StrokeCap.Round),
+                )
+            }
         }
-        Spacer(Modifier.height(5.dp))
-        Row(verticalAlignment = Alignment.Bottom) {
-            Text(
-                formatGrams(value),
-                style = IosTypography.title3,
-                fontWeight = FontWeight(600),
-                color = if (over) barColor else colors.content,
+
+        ring(proteinProgress, if (overProtein) danger else FitPalette.protein, outer)
+        ring(carbsProgress, if (overCarbs) danger else FitPalette.carbs, outer - step)
+        ring(fatProgress, if (overFat) danger else FitPalette.fat, outer - step * 2f)
+    }
+}
+
+/** 底部余量胶囊：还可以吃多少 / 已经超出多少。 */
+@Composable
+private fun RemainingChip(remaining: Int, over: Boolean) {
+    val colors = GlasmioTheme.colors
+    val danger = FitPalette.danger(colors.isDark)
+    Row(
+        Modifier
+            .clip(Capsule())
+            .background(
+                if (over) {
+                    danger.copy(alpha = if (colors.isDark) 0.22f else 0.12f)
+                } else {
+                    colors.segmentedControlBackground
+                },
             )
-            Text(
-                " / ${target}g",
-                style = IosTypography.caption2,
-                color = colors.tertiaryContent,
-                modifier = Modifier.padding(bottom = 2.dp),
-            )
-        }
-        Spacer(Modifier.height(7.dp))
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .height(5.dp)
-                .clip(Capsule())
-                .background(colors.systemGray5),
-        ) {
-            Box(
-                Modifier
-                    .fillMaxWidth(frac)
-                    .fillMaxHeight()
-                    .clip(Capsule())
-                    .background(barColor),
-            )
-        }
+            .padding(horizontal = 12.dp, vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            if (over) "已超出 ${-remaining} 千卡" else "还可以吃 $remaining 千卡",
+            style = IosTypography.footnote,
+            fontWeight = FontWeight(600),
+            color = if (over) danger else colors.secondaryContent,
+        )
     }
 }
 

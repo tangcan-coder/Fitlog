@@ -9,7 +9,8 @@ data class BatchResult(
 
 /**
  * 批量导入：一行一条，空格 / 逗号 / 制表符分隔。
- * 名称 热量 蛋白 碳水 脂肪 —— 后面三个可省略。
+ * 名称 能量 蛋白 碳水 脂肪 —— 后面三个可省略。
+ * 能量默认按 kcal；写成 `485kj` 就按 kJ 换算（营养表上抄下来的数字可以直接带单位）。
  * 以 # 开头的行当注释跳过，方便粘贴时保留原标题。
  */
 object BatchImport {
@@ -28,7 +29,7 @@ object BatchImport {
             }
 
             val name = parts[0]
-            val kcal = parts[1].toDoubleOrNull()
+            val kcal = parseKcal(parts[1])
             if (kcal == null || kcal <= 0) {
                 skipped++
                 return@forEach
@@ -48,6 +49,18 @@ object BatchImport {
             )
         }
         return BatchResult(foods, skipped)
+    }
+
+    /**
+     * 能量列：裸数字按 kcal（老习惯，不能改，否则旧文本会被当成 kJ 读小四倍）；
+     * 带 `kj` 后缀的按 kJ 换算。返回值统一成 kcal。
+     */
+    private fun parseKcal(raw: String): Double? {
+        val text = raw.trim()
+        val isKj = text.endsWith("kj", ignoreCase = true)
+        val number = (if (isKj) text.dropLast(2) else text).toDoubleOrNull() ?: return null
+        if (number <= 0) return null
+        return if (isKj) kcalFromKj(number) else number
     }
 }
 
