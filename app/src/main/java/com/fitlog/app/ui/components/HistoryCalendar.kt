@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -27,7 +26,6 @@ import androidx.compose.ui.unit.sp
 import com.fitlog.app.data.LogEntry
 import com.fitlog.app.data.Meal
 import com.fitlog.app.domain.Targets
-import com.fitlog.app.domain.pretty
 import com.fitlog.app.domain.totalsOf
 import com.fitlog.app.ui.theme.FitPalette
 import com.kyant.capsule.ContinuousRoundedRectangle
@@ -245,6 +243,10 @@ private fun RowScope.DayCell(
 
 /**
  * 选中日期的当日营养汇总。
+ *
+ * 版式和今日页那张卡保持一致：左边四行数值、右边四圈同心环、底部余量胶囊，
+ * 上面多一行「日期 + 今天 + 几条」的表头，下面多一行餐次分布。
+ * 两处共用 [NutritionRingsBody]，改一处两边都跟着变。
  */
 @Composable
 fun DaySummaryCard(
@@ -255,7 +257,6 @@ fun DaySummaryCard(
 ) {
     val colors = GlasmioTheme.colors
     val totals = totalsOf(entries)
-    val remaining = targets.kcal - totals.kcal
     val isToday = date == LocalDate.now()
 
     Column(
@@ -263,7 +264,7 @@ fun DaySummaryCard(
             .fillMaxWidth()
             .clip(ContinuousRoundedRectangle(26.dp))
             .background(colors.elevatedBackground)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
+            .padding(16.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
@@ -294,34 +295,8 @@ fun DaySummaryCard(
         if (entries.isEmpty()) {
             EmptyHint(text = "这一天还没有记录", symbol = null)
         } else {
-            Spacer(Modifier.height(10.dp))
-            Row(verticalAlignment = Alignment.Bottom) {
-                Text(
-                    "${totals.kcal}",
-                    style = IosTypography.largeTitle,
-                    fontWeight = FontWeight(700),
-                    color = colors.content,
-                )
-                Text(
-                    " / ${targets.kcal} kcal",
-                    style = IosTypography.caption1,
-                    color = colors.tertiaryContent,
-                    modifier = Modifier.padding(bottom = 5.dp),
-                )
-                Spacer(Modifier.weight(1f))
-                Text(
-                    if (remaining >= 0) "还差 $remaining kcal" else "超出 ${-remaining} kcal",
-                    style = IosTypography.caption1,
-                    color = if (remaining >= 0) colors.secondaryContent else colors.destructive,
-                )
-            }
-
             Spacer(Modifier.height(14.dp))
-            MacroProgressRow("蛋白", totals.protein, targets.protein, FitPalette.protein)
-            Spacer(Modifier.height(10.dp))
-            MacroProgressRow("碳水", totals.carbs, targets.carbs, FitPalette.carbs)
-            Spacer(Modifier.height(10.dp))
-            MacroProgressRow("脂肪", totals.fat, targets.fat, FitPalette.fat)
+            NutritionRingsBody(totals = totals, targets = targets)
 
             val mealLine = Meal.all.mapNotNull { meal ->
                 val kcal = entries.filter { it.meal == meal.id }.sumOf { it.kcal }.roundToInt()
@@ -336,51 +311,6 @@ fun DaySummaryCard(
                 )
             }
         }
-    }
-}
-
-@Composable
-private fun MacroProgressRow(
-    label: String,
-    value: Double,
-    target: Int,
-    color: Color,
-) {
-    val colors = GlasmioTheme.colors
-    val over = target > 0 && value > target
-    val barColor = if (over) colors.destructive else color
-    val fraction = if (target <= 0) 0f else (value / target).toFloat().coerceIn(0f, 1f)
-
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            label,
-            style = IosTypography.footnote,
-            color = colors.secondaryContent,
-            modifier = Modifier.width(30.dp),
-        )
-        Box(
-            Modifier
-                .weight(1f)
-                .height(6.dp)
-                .clip(CircleShape)
-                .background(colors.systemGray5),
-        ) {
-            Box(
-                Modifier
-                    .fillMaxWidth(fraction)
-                    .fillMaxHeight()
-                    .clip(CircleShape)
-                    .background(barColor),
-            )
-        }
-        Spacer(Modifier.width(10.dp))
-        Text(
-            "${value.pretty()} / ${target} g",
-            style = IosTypography.caption1,
-            color = if (over) colors.destructive else colors.content,
-            textAlign = TextAlign.End,
-            modifier = Modifier.width(94.dp),
-        )
     }
 }
 

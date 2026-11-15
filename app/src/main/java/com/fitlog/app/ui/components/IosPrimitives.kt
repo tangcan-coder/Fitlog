@@ -511,22 +511,44 @@ private fun StepperButton(
 
 /* ------------------------- 今日概览：同心圆环 ------------------------- */
 
+/* ------------------------- 营养概览：同心圆环 ------------------------- */
+
 /**
- * 今日营养概览：左边四行数值（热量 / 蛋白 / 碳水 / 脂肪），右边三圈同心环。
+ * 今日营养概览：左边四行数值（热量 / 蛋白 / 碳水 / 脂肪），右边四圈同心环。
  *
- * 之前是「一个大热量环 + 一张宏量卡」，热量数字和「已摄入 · 目标」压在环上，
- * 字和环互相打架。现在参考活动圆环的版式：数值全部在环外、环只表达比例，
- * 三个环从外到内依次是蛋白、碳水、脂肪，颜色和左侧色条一一对应。
+ * 四圈从外到内依次是热量、蛋白、碳水、脂肪，顺序和左边四行完全一致、颜色一一对应。
+ * 早一版只画了三个宏量环、热量只有数字没有环，视觉上总像缺一块；
+ * 把热量放进最外圈之后，四行数值和四个环才对得上。
  *
- * 热量不单独占一个环——它是总量而不是「完成度」，用第一行的大号数字
- * 加底部「还可以吃」胶囊表达，信息层级反而更清楚。
+ * 数值全部在环外，环只表达比例，文字不再压在圆环上。
  */
 @Composable
 fun NutritionRingsCard(
     totals: Totals,
     targets: Targets,
     modifier: Modifier = Modifier,
-    ringSize: Dp = 132.dp,
+) {
+    Column(
+        modifier
+            .fillMaxWidth()
+            .clip(ContinuousRoundedRectangle(26.dp))
+            .background(GlasmioTheme.colors.elevatedBackground)
+            .padding(16.dp),
+    ) {
+        NutritionRingsBody(totals = totals, targets = targets)
+    }
+}
+
+/**
+ * 「四行数值 + 四圈环 + 余量胶囊」这一段，今日页和统计页的当日详情共用，
+ * 保证两处是同一套东西，改一处两边都跟着变。
+ */
+@Composable
+fun NutritionRingsBody(
+    totals: Totals,
+    targets: Targets,
+    modifier: Modifier = Modifier,
+    ringSize: Dp = 140.dp,
 ) {
     val colors = GlasmioTheme.colors
     val dark = colors.isDark
@@ -534,13 +556,7 @@ fun NutritionRingsCard(
     val over = remaining < 0
     val danger = FitPalette.danger(dark)
 
-    Column(
-        modifier
-            .fillMaxWidth()
-            .clip(ContinuousRoundedRectangle(26.dp))
-            .background(colors.elevatedBackground)
-            .padding(horizontal = 16.dp, vertical = 16.dp),
-    ) {
+    Column(modifier) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(
                 Modifier.weight(1f),
@@ -582,9 +598,11 @@ fun NutritionRingsCard(
             }
             Spacer(Modifier.width(14.dp))
             MacroRings(
+                kcal = ratioOf(totals.kcal.toDouble(), targets.kcal),
                 protein = ratioOf(totals.protein, targets.protein),
                 carbs = ratioOf(totals.carbs, targets.carbs),
                 fat = ratioOf(totals.fat, targets.fat),
+                overKcal = over,
                 overProtein = targets.protein > 0 && totals.protein > targets.protein,
                 overCarbs = targets.carbs > 0 && totals.carbs > targets.carbs,
                 overFat = targets.fat > 0 && totals.fat > targets.fat,
@@ -643,16 +661,18 @@ private fun StatLine(
 }
 
 /**
- * 三圈同心环：外圈蛋白、中圈碳水、内圈脂肪。
+ * 四圈同心环：外圈热量、再蛋白、碳水、脂肪。
  *
  * 进度用动画推过去（切日期、记完一条都能看到环长出来），
  * 轨道和进度都是 Canvas 画的，不需要图片资源，也不走玻璃采样。
  */
 @Composable
 private fun MacroRings(
+    kcal: Float,
     protein: Float,
     carbs: Float,
     fat: Float,
+    overKcal: Boolean,
     overProtein: Boolean,
     overCarbs: Boolean,
     overFat: Boolean,
@@ -661,16 +681,17 @@ private fun MacroRings(
     val colors = GlasmioTheme.colors
     val dark = colors.isDark
     val danger = FitPalette.danger(dark)
+    val kcalProgress by animateFloatAsState(kcal, tween(700, easing = FastOutSlowInEasing), label = "kcalRing")
     val proteinProgress by animateFloatAsState(protein, tween(700, easing = FastOutSlowInEasing), label = "proteinRing")
     val carbsProgress by animateFloatAsState(carbs, tween(700, easing = FastOutSlowInEasing), label = "carbsRing")
     val fatProgress by animateFloatAsState(fat, tween(700, easing = FastOutSlowInEasing), label = "fatRing")
     val track = colors.systemGray5
 
     Canvas(modifier) {
-        val stroke = 10.dp.toPx()
-        // 圈与圈之间留一点缝：三个值都很小时（比如刚记录一项），
-        // 贴在一起的圆头会糊成一块色斑，分开才能看出是三个环。
-        val gap = 3.dp.toPx()
+        val stroke = 9.dp.toPx()
+        // 圈与圈之间留一点缝：几个值都很小时（比如刚记录一项），
+        // 贴在一起的圆头会糊成一块色斑，分开才能看出是四个环。
+        val gap = 2.5.dp.toPx()
         val step = stroke + gap
         val outer = size.minDimension / 2f - stroke / 2f
 
@@ -699,9 +720,10 @@ private fun MacroRings(
             }
         }
 
-        ring(proteinProgress, if (overProtein) danger else FitPalette.protein, outer)
-        ring(carbsProgress, if (overCarbs) danger else FitPalette.carbs, outer - step)
-        ring(fatProgress, if (overFat) danger else FitPalette.fat, outer - step * 2f)
+        ring(kcalProgress, if (overKcal) danger else colors.accent, outer)
+        ring(proteinProgress, if (overProtein) danger else FitPalette.protein, outer - step)
+        ring(carbsProgress, if (overCarbs) danger else FitPalette.carbs, outer - step * 2f)
+        ring(fatProgress, if (overFat) danger else FitPalette.fat, outer - step * 3f)
     }
 }
 
