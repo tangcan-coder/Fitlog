@@ -8,8 +8,10 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -18,6 +20,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -31,6 +34,7 @@ import com.fitlog.app.data.ActivityLevels
 import com.fitlog.app.data.AppData
 import com.fitlog.app.data.Profile
 import com.fitlog.app.domain.targetsOf
+import com.fitlog.app.ui.components.FitListRow
 import com.fitlog.app.ui.components.FieldRow
 import com.fitlog.app.ui.components.IosGroupFooter
 import com.fitlog.app.ui.components.IosSectionHeader
@@ -39,10 +43,12 @@ import com.kyant.capsule.ContinuousRoundedRectangle
 import io.github.neoruaa.glasmio.core.GlasmioTheme
 import io.github.neoruaa.glasmio.core.IosTypography
 import io.github.neoruaa.glasmio.icons.SfIcon
+import io.github.neoruaa.glasmio.scaffold.GlasmioPinnedPage
 import io.github.neoruaa.glasmio.scaffold.rememberGlasmioHeaderScrollEdge
 import io.github.neoruaa.glasmio.ui.GlasmioBottomSheet
+import io.github.neoruaa.glasmio.ui.GlasmioButton
+import io.github.neoruaa.glasmio.ui.GlasmioButtonSize
 import io.github.neoruaa.glasmio.ui.GlasmioGroupedList
-import io.github.neoruaa.glasmio.ui.GlasmioListRow
 import io.github.neoruaa.glasmio.ui.GlasmioSheetButton
 import io.github.neoruaa.glasmio.ui.GlasmioSheetTopToolbar
 import io.github.neoruaa.glasmio.ui.LocalGlasmioSheetContentPadding
@@ -165,7 +171,7 @@ fun ProfileSheet(
                         GlasmioGroupedList {
                             ActivityLevels.list.forEachIndexed { index, level ->
                                 val active = level.value == activity
-                                GlasmioListRow(
+                                FitListRow(
                                     title = level.label,
                                     showTopSeparator = index > 0,
                                     showDisclosure = false,
@@ -201,7 +207,7 @@ fun ProfileSheet(
                                 "0.5" to "0.5 kg",
                                 "0.75" to "0.75 kg",
                             ),
-                            selected = trimNumber(rate),
+                            selected = rateText(rate),
                             onSelect = { v -> rate = v.toDoubleOrNull() ?: 0.5 },
                         )
                         IosGroupFooter("减脂建议 0.5，增肌建议 0.25。太激进容易掉肌肉。")
@@ -243,13 +249,26 @@ fun ProfileSheet(
     }
 
     if (pageMode) {
-        SheetPageScaffold(
+        // 二级页面：玻璃导航栏 + 返回键 + 保存按钮，滚动时顶栏渐进模糊
+        GlasmioPinnedPage(
             title = "资料与目标",
-            onDismiss = onDismiss,
-            actionLabel = "保存",
-            onAction = save,
-        ) {
-            body()
+            onNavigateBack = onDismiss,
+            actions = {
+                GlasmioButton(onClick = save, size = GlasmioButtonSize.Small) {
+                    Text("保存")
+                }
+            },
+            topBarBlurProgress = edge,
+            modifier = Modifier.imePadding(),
+        ) { padding ->
+            CompositionLocalProvider(
+                LocalGlasmioSheetContentPadding provides PaddingValues(
+                    top = padding.calculateTopPadding(),
+                    bottom = padding.calculateBottomPadding(),
+                ),
+            ) {
+                Column(Modifier.fillMaxSize()) { body() }
+            }
         }
     } else {
         GlasmioBottomSheet(
@@ -274,6 +293,9 @@ fun ProfileSheet(
         }
     }
 }
+
+private fun rateText(value: Double): String =
+    if (value == floor(value)) value.toInt().toString() else value.toString()
 
 private fun trimNumber(value: Double): String {
     val r = (value * 10).roundToInt() / 10.0

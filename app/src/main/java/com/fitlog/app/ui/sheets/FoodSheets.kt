@@ -10,8 +10,10 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -22,6 +24,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -47,6 +50,7 @@ import com.fitlog.app.domain.pretty
 import com.fitlog.app.domain.servingFromPer100g
 import com.fitlog.app.ui.SelectState
 import com.fitlog.app.ui.Sheet
+import com.fitlog.app.ui.components.FitListRow
 import com.fitlog.app.ui.components.CategoryChips
 import com.fitlog.app.ui.components.EmptyHint
 import com.fitlog.app.ui.components.FieldRow
@@ -63,13 +67,15 @@ import io.github.neoruaa.glasmio.core.GlasmioTheme
 import io.github.neoruaa.glasmio.core.IosTypography
 import io.github.neoruaa.glasmio.core.segmentedControlBackground
 import io.github.neoruaa.glasmio.icons.SfIcon
+import io.github.neoruaa.glasmio.scaffold.GlasmioPinnedPage
 import io.github.neoruaa.glasmio.scaffold.rememberGlasmioHeaderScrollEdge
 import io.github.neoruaa.glasmio.ui.GlasmioAlertButtonRole
+import io.github.neoruaa.glasmio.ui.GlasmioButton
+import io.github.neoruaa.glasmio.ui.GlasmioButtonSize
 import io.github.neoruaa.glasmio.ui.GlasmioAlertButtonSpec
 import io.github.neoruaa.glasmio.ui.GlasmioAlertDialog
 import io.github.neoruaa.glasmio.ui.GlasmioBottomSheet
 import io.github.neoruaa.glasmio.ui.GlasmioGroupedList
-import io.github.neoruaa.glasmio.ui.GlasmioListRow
 import io.github.neoruaa.glasmio.ui.GlasmioSheetButton
 import io.github.neoruaa.glasmio.ui.GlasmioSheetTopToolbar
 import io.github.neoruaa.glasmio.ui.GlasmioTextField
@@ -157,7 +163,7 @@ fun SelectSheet(
                     // 行拆成独立 item，食物很多时也只组合屏幕上的几行。
                     itemsIndexed(visibleFoods, key = { _, food -> food.id }) { index, food ->
                         val count = state.qty[food.id] ?: 0
-                        GlasmioListRow(
+                        FitListRow(
                             title = food.name,
                             subtitle = "1${food.unit} · ${food.kcal.roundToInt()} kcal · " +
                                 "蛋白 ${trimNumber(food.p)}g",
@@ -183,7 +189,7 @@ fun SelectSheet(
                 item(key = "new-food") {
                     Column(Modifier.padding(top = 14.dp)) {
                         GlasmioGroupedList {
-                            GlasmioListRow(
+                            FitListRow(
                                 "没有？新建一个食物",
                                 systemName = "plus",
                                 titleColor = colors.accent,
@@ -231,14 +237,22 @@ fun SelectSheet(
     }
 
     if (pageMode) {
-        SheetPageScaffold(
+        GlasmioPinnedPage(
             title = "$mealLabel · ${Dates.human(state.date)}",
-            onDismiss = onDismiss,
-            actionLabel = "记录",
-            actionEnabled = chosen.isNotEmpty(),
-            onAction = onCommit,
-        ) {
-            body()
+            onNavigateBack = onDismiss,
+            actions = {
+                GlasmioButton(
+                    onClick = onCommit,
+                    size = GlasmioButtonSize.Small,
+                    enabled = chosen.isNotEmpty(),
+                ) {
+                    Text("记录")
+                }
+            },
+            topBarBlurProgress = edge,
+            modifier = Modifier.imePadding(),
+        ) { padding ->
+            pageBody(padding = padding, body = body)
         }
     } else {
         GlasmioBottomSheet(
@@ -469,7 +483,7 @@ fun FoodFormSheet(
                     item(key = "delete") {
                         Column {
                             GlasmioGroupedList {
-                                GlasmioListRow(
+                                FitListRow(
                                     "删除这个食物",
                                     titleColor = colors.destructive,
                                     showTopSeparator = false,
@@ -486,13 +500,19 @@ fun FoodFormSheet(
     }
 
     if (pageMode) {
-        SheetPageScaffold(
+        // 二级页面：玻璃导航栏 + 返回键 + 操作按钮，内容滚动时顶栏做渐进模糊
+        GlasmioPinnedPage(
             title = title,
-            onDismiss = onDismiss,
-            actionLabel = "保存",
-            onAction = attemptSave,
-        ) {
-            body()
+            onNavigateBack = onDismiss,
+            actions = {
+                GlasmioButton(onClick = attemptSave, size = GlasmioButtonSize.Small) {
+                    Text("保存")
+                }
+            },
+            topBarBlurProgress = edge,
+            modifier = Modifier.imePadding(),
+        ) { padding ->
+            pageBody(padding = padding, body = body)
         }
     } else {
         GlasmioBottomSheet(
@@ -656,7 +676,7 @@ fun EntrySheet(
             )
 
             GlasmioGroupedList {
-                GlasmioListRow(
+                FitListRow(
                     "删除这条记录",
                     titleColor = colors.destructive,
                     showTopSeparator = false,
@@ -667,12 +687,11 @@ fun EntrySheet(
     }
 
     if (pageMode) {
-        SheetPageScaffold(
+        GlasmioPinnedPage(
             title = sheet.name,
-            onDismiss = onDismiss,
-            backLabel = "返回",
-        ) {
-            body()
+            onNavigateBack = onDismiss,
+        ) { padding ->
+            pageBody(padding = padding, body = body)
         }
     } else {
         GlasmioBottomSheet(
@@ -782,14 +801,21 @@ fun BatchSheet(
     }
 
     if (pageMode) {
-        SheetPageScaffold(
+        GlasmioPinnedPage(
             title = "批量导入",
-            onDismiss = onDismiss,
-            actionLabel = "导入",
-            actionEnabled = text.isNotBlank(),
-            onAction = { onCommit(text) },
-        ) {
-            body()
+            onNavigateBack = onDismiss,
+            actions = {
+                GlasmioButton(
+                    onClick = { onCommit(text) },
+                    size = GlasmioButtonSize.Small,
+                    enabled = text.isNotBlank(),
+                ) {
+                    Text("导入")
+                }
+            },
+            modifier = Modifier.imePadding(),
+        ) { padding ->
+            pageBody(padding = padding, body = body)
         }
     } else {
         GlasmioBottomSheet(
@@ -830,3 +856,22 @@ private fun trimNumber(value: Double): String {
  */
 private fun String.isBadNumber(): Boolean =
     isNotBlank() && (toDoubleOrNull()?.let { it >= 0.0 } != true)
+
+/**
+ * 二级页面的内容包装：把 [GlasmioPinnedPage] 给的 PaddingValues 转成页面内容读的
+ * `LocalGlasmioSheetContentPadding`，横向留给内容自己的 16dp。
+ */
+@Composable
+private fun pageBody(
+    padding: PaddingValues,
+    body: @Composable ColumnScope.() -> Unit,
+) {
+    CompositionLocalProvider(
+        LocalGlasmioSheetContentPadding provides PaddingValues(
+            top = padding.calculateTopPadding(),
+            bottom = padding.calculateBottomPadding(),
+        ),
+    ) {
+        Column(Modifier.fillMaxSize()) { body() }
+    }
+}
