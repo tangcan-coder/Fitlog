@@ -1,6 +1,7 @@
 package com.fitlog.app.ui.sheets
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -9,6 +10,8 @@ import androidx.compose.runtime.setValue
 import com.fitlog.app.data.AppData
 import com.fitlog.app.ui.AppViewModel
 import com.fitlog.app.ui.Sheet
+import io.github.neoruaa.glasmio.core.GlassAppearance
+import io.github.neoruaa.glasmio.core.LocalGlassAppearance
 import kotlinx.coroutines.delay
 
 /**
@@ -31,64 +34,74 @@ fun SheetHost(
     // 每敲一个字都会先拿旧值重组一帧，输入框被外部值冲回去、光标跳回开头，
     // 于是输入 “23” 会显示成 “32”。
     var lastSheet by remember { mutableStateOf<Sheet?>(null) }
-    var visible by remember { mutableStateOf(false) }
 
     LaunchedEffect(sheet) {
         if (sheet != null) {
             lastSheet = sheet
-            visible = true
         } else if (lastSheet != null) {
-            visible = false
-            delay(420)
+            delay(SHEET_EXIT_ANIMATION_MS)
             lastSheet = null
         }
     }
 
     val current = sheet ?: lastSheet ?: return
+    // 可见性直接由状态推导：以前还要在 LaunchedEffect 里再翻一次 visible，
+    // 打开时会多走一轮「先以不可见组合、再改状态重组」的重组。
+    val visible = sheet != null
 
-    when (current) {
-        is Sheet.Select -> SelectSheet(
-            state = current.state,
-            foods = data.foods,
-            visible = visible,
-            onDismiss = onDismiss,
-            onQuery = vm::setSelectQuery,
-            onCat = vm::setSelectCat,
-            onQty = vm::changeQty,
-            onCommit = vm::commitSelection,
-            onNewFood = { vm.openNewFood(current.state) },
-        )
+    // 弹层本体铺的是一层不透明的 groupedBackground，玻璃材质其实被完全盖住，
+    // 但每一帧仍要跑全屏采样 + 模糊/折射着色器——弹出时掉帧主要就掉在这里。
+    // 所以只给弹层关掉背景采样（导航栏、工具栏的玻璃不受影响）。
+    val sheetAppearance = remember { GlassAppearance(reduceTransparency = true) }
 
-        is Sheet.FoodForm -> FoodFormSheet(
-            form = current,
-            visible = visible,
-            onDismiss = onDismiss,
-            onUpdate = { vm.updateFoodForm(it) },
-            onBasis = { vm.setFoodBasis(it) },
-            onSave = { vm.saveFoodForm() },
-            onDelete = { vm.deleteFood(current.foodId.orEmpty()) },
-        )
+    CompositionLocalProvider(LocalGlassAppearance provides sheetAppearance) {
+        when (current) {
+            is Sheet.Select -> SelectSheet(
+                state = current.state,
+                foods = data.foods,
+                visible = visible,
+                onDismiss = onDismiss,
+                onQuery = vm::setSelectQuery,
+                onCat = vm::setSelectCat,
+                onQty = vm::changeQty,
+                onCommit = vm::commitSelection,
+                onNewFood = { vm.openNewFood(current.state) },
+            )
 
-        is Sheet.Entry -> EntrySheet(
-            sheet = current,
-            visible = visible,
-            onDismiss = onDismiss,
-            onDelta = { vm.changeEntryQty(it) },
-            onDelete = { vm.deleteEntry(current.date, current.entryId) },
-        )
+            is Sheet.FoodForm -> FoodFormSheet(
+                form = current,
+                visible = visible,
+                onDismiss = onDismiss,
+                onUpdate = { vm.updateFoodForm(it) },
+                onBasis = { vm.setFoodBasis(it) },
+                onSave = { vm.saveFoodForm() },
+                onDelete = { vm.deleteFood(current.foodId.orEmpty()) },
+            )
 
-        Sheet.Batch -> BatchSheet(
-            visible = visible,
-            onDismiss = onDismiss,
-            onCommit = { vm.commitBatch(it) },
-        )
+            is Sheet.Entry -> EntrySheet(
+                sheet = current,
+                visible = visible,
+                onDismiss = onDismiss,
+                onDelta = { vm.changeEntryQty(it) },
+                onDelete = { vm.deleteEntry(current.date, current.entryId) },
+            )
 
-        Sheet.Profile -> ProfileSheet(
-            data = data,
-            visible = visible,
-            onDismiss = onDismiss,
-            onSave = { vm.saveProfile(it) },
-            onInvalid = { vm.toast(it) },
-        )
+            Sheet.Batch -> BatchSheet(
+                visible = visible,
+                onDismiss = onDismiss,
+                onCommit = { vm.commitBatch(it) },
+            )
+
+            Sheet.Profile -> ProfileSheet(
+                data = data,
+                visible = visible,
+                onDismiss = onDismiss,
+                onSave = { vm.saveProfile(it) },
+                onInvalid = { vm.toast(it) },
+            )
+        }
     }
 }
+
+/** 退场动画时长：Glasmio 的弹层还在动画里时不能移出组合树，否则会闪一下空白 */
+private const val SHEET_EXIT_ANIMATION_MS = 420L
