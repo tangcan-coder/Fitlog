@@ -486,16 +486,15 @@ private fun StepperButton(
 
 /* ------------------------- 今日概览：同心圆环 ------------------------- */
 
-/* ------------------------- 营养概览：同心圆环 ------------------------- */
-
 /**
- * 今日营养概览：左边四行数值（热量 / 蛋白 / 碳水 / 脂肪），右边四圈同心环。
+ * 今日营养概览：左边四圈同心环，右边四组「标签 + 数值」。
  *
- * 四圈从外到内依次是热量、蛋白、碳水、脂肪，顺序和左边四行完全一致、颜色一一对应。
- * 早一版只画了三个宏量环、热量只有数字没有环，视觉上总像缺一块；
- * 把热量放进最外圈之后，四行数值和四个环才对得上。
+ * 版式对齐健身 App 的活动圆环：环只表达比例，数值全部在环外、并且染成对应的环色，
+ * 一眼就能把「哪一圈 = 哪一项」对上。最外圈是热量，往内依次是蛋白、碳水、脂肪，
+ * 顺序和右边四行完全一致。
  *
- * 数值全部在环外，环只表达比例，文字不再压在圆环上。
+ * 这里不再放「还可以吃多少」的余额胶囊：环和分数已经说明问题，
+ * 多一个胶囊只会把卡片撑长。
  */
 @Composable
 fun NutritionRingsCard(
@@ -515,7 +514,7 @@ fun NutritionRingsCard(
 }
 
 /**
- * 「四行数值 + 四圈环 + 余量胶囊」这一段，今日页和统计页的当日详情共用，
+ * 「四圈环 + 四组数值」这一段，今日页和统计页的当日详情共用，
  * 保证两处是同一套东西，改一处两边都跟着变。
  */
 @Composable
@@ -523,113 +522,97 @@ fun NutritionRingsBody(
     totals: Totals,
     targets: Targets,
     modifier: Modifier = Modifier,
-    ringSize: Dp = 140.dp,
+    ringSize: Dp = 188.dp,
 ) {
-    val colors = GlasmioTheme.colors
-    val dark = colors.isDark
-    val remaining = targets.kcal - totals.kcal
-    val over = remaining < 0
-    val danger = FitPalette.danger(dark)
-
-    Column(modifier) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(
-                Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                StatLine(
-                    label = "热量",
-                    value = totals.kcal.toString(),
-                    target = targets.kcal,
-                    unit = "千卡",
-                    color = if (over) danger else colors.accent,
-                    over = over,
-                    emphasize = true,
-                )
-                StatLine(
-                    label = "蛋白",
-                    value = formatGrams(totals.protein),
-                    target = targets.protein,
-                    unit = "克",
-                    color = FitPalette.protein,
-                    over = targets.protein > 0 && totals.protein > targets.protein,
-                )
-                StatLine(
-                    label = "碳水",
-                    value = formatGrams(totals.carbs),
-                    target = targets.carbs,
-                    unit = "克",
-                    color = FitPalette.carbs,
-                    over = targets.carbs > 0 && totals.carbs > targets.carbs,
-                )
-                StatLine(
-                    label = "脂肪",
-                    value = formatGrams(totals.fat),
-                    target = targets.fat,
-                    unit = "克",
-                    color = FitPalette.fat,
-                    over = targets.fat > 0 && totals.fat > targets.fat,
-                )
-            }
-            Spacer(Modifier.width(14.dp))
-            MacroRings(
-                kcal = ratioOf(totals.kcal.toDouble(), targets.kcal),
-                protein = ratioOf(totals.protein, targets.protein),
-                carbs = ratioOf(totals.carbs, targets.carbs),
-                fat = ratioOf(totals.fat, targets.fat),
-                overKcal = over,
-                overProtein = targets.protein > 0 && totals.protein > targets.protein,
-                overCarbs = targets.carbs > 0 && totals.carbs > targets.carbs,
-                overFat = targets.fat > 0 && totals.fat > targets.fat,
-                modifier = Modifier.size(ringSize),
+    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
+        MacroRings(
+            kcal = ratioOf(totals.kcal.toDouble(), targets.kcal),
+            protein = ratioOf(totals.protein, targets.protein),
+            carbs = ratioOf(totals.carbs, targets.carbs),
+            fat = ratioOf(totals.fat, targets.fat),
+            overKcal = targets.kcal > 0 && totals.kcal > targets.kcal,
+            overProtein = targets.protein > 0 && totals.protein > targets.protein,
+            overCarbs = targets.carbs > 0 && totals.carbs > targets.carbs,
+            overFat = targets.fat > 0 && totals.fat > targets.fat,
+            modifier = Modifier.size(ringSize),
+        )
+        Spacer(Modifier.width(14.dp))
+        Column(
+            Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            MetricLine(
+                label = "热量",
+                value = totals.kcal.toString(),
+                target = targets.kcal,
+                unit = "千卡",
+                color = GlasmioTheme.colors.accent,
+                over = targets.kcal > 0 && totals.kcal > targets.kcal,
+            )
+            MetricLine(
+                label = "蛋白",
+                value = formatGrams(totals.protein),
+                target = targets.protein,
+                unit = "克",
+                color = FitPalette.protein,
+                over = targets.protein > 0 && totals.protein > targets.protein,
+            )
+            MetricLine(
+                label = "碳水",
+                value = formatGrams(totals.carbs),
+                target = targets.carbs,
+                unit = "克",
+                color = FitPalette.carbs,
+                over = targets.carbs > 0 && totals.carbs > targets.carbs,
+            )
+            MetricLine(
+                label = "脂肪",
+                value = formatGrams(totals.fat),
+                target = targets.fat,
+                unit = "克",
+                color = FitPalette.fat,
+                over = targets.fat > 0 && totals.fat > targets.fat,
             )
         }
-        Spacer(Modifier.height(14.dp))
-        RemainingChip(remaining = remaining, over = over)
     }
 }
 
 private fun ratioOf(value: Double, target: Int): Float =
     if (target <= 0) 0f else (value / target).toFloat().coerceIn(0f, 1f)
 
-/** 一行「▌标签 数值 / 目标 单位」；超标时整行转红，和热量余额保持同一套语义。 */
+/** 一组「小标签 + 大数字/目标」；数字用环色，超标时整组转红。 */
 @Composable
-private fun StatLine(
+private fun MetricLine(
     label: String,
     value: String,
     target: Int,
     unit: String,
     color: Color,
     over: Boolean,
-    emphasize: Boolean = false,
 ) {
     val colors = GlasmioTheme.colors
     val tint = if (over) FitPalette.danger(colors.isDark) else color
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(
-            Modifier
-                .width(3.dp)
-                .height(if (emphasize) 28.dp else 22.dp)
-                .clip(Capsule())
-                .background(tint),
+    Column {
+        Text(
+            label,
+            style = IosTypography.footnote,
+            color = colors.secondaryContent,
+            maxLines = 1,
         )
-        Spacer(Modifier.width(9.dp))
-        Text(label, style = IosTypography.footnote, color = colors.secondaryContent)
-        Spacer(Modifier.width(7.dp))
         Row(verticalAlignment = Alignment.Bottom) {
             Text(
-                value,
-                style = if (emphasize) IosTypography.title2 else IosTypography.title3,
+                "$value/$target",
+                style = IosTypography.title3,
                 fontWeight = FontWeight(600),
-                color = if (over) tint else colors.content,
+                color = tint,
                 maxLines = 1,
             )
             Text(
-                " / $target $unit",
-                style = IosTypography.caption2,
-                color = colors.tertiaryContent,
+                unit,
+                style = IosTypography.caption1,
+                color = tint,
                 maxLines = 1,
-                modifier = Modifier.padding(bottom = 3.dp),
+                modifier = Modifier.padding(start = 3.dp, bottom = 3.dp),
             )
         }
     }
@@ -663,10 +646,10 @@ private fun MacroRings(
     val track = colors.systemGray5
 
     Canvas(modifier) {
-        val stroke = 9.dp.toPx()
+        val stroke = 12.dp.toPx()
         // 圈与圈之间留一点缝：几个值都很小时（比如刚记录一项），
         // 贴在一起的圆头会糊成一块色斑，分开才能看出是四个环。
-        val gap = 2.5.dp.toPx()
+        val gap = 3.dp.toPx()
         val step = stroke + gap
         val outer = size.minDimension / 2f - stroke / 2f
 
@@ -699,33 +682,6 @@ private fun MacroRings(
         ring(proteinProgress, if (overProtein) danger else FitPalette.protein, outer - step)
         ring(carbsProgress, if (overCarbs) danger else FitPalette.carbs, outer - step * 2f)
         ring(fatProgress, if (overFat) danger else FitPalette.fat, outer - step * 3f)
-    }
-}
-
-/** 底部余量胶囊：还可以吃多少 / 已经超出多少。 */
-@Composable
-private fun RemainingChip(remaining: Int, over: Boolean) {
-    val colors = GlasmioTheme.colors
-    val danger = FitPalette.danger(colors.isDark)
-    Row(
-        Modifier
-            .clip(Capsule())
-            .background(
-                if (over) {
-                    danger.copy(alpha = if (colors.isDark) 0.22f else 0.12f)
-                } else {
-                    colors.segmentedControlBackground
-                },
-            )
-            .padding(horizontal = 12.dp, vertical = 7.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            if (over) "已超出 ${-remaining} 千卡" else "还可以吃 $remaining 千卡",
-            style = IosTypography.footnote,
-            fontWeight = FontWeight(600),
-            color = if (over) danger else colors.secondaryContent,
-        )
     }
 }
 

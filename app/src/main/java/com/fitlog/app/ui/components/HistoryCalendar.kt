@@ -24,7 +24,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.fitlog.app.data.LogEntry
-import com.fitlog.app.data.Meal
 import com.fitlog.app.domain.Targets
 import com.fitlog.app.domain.totalsOf
 import com.fitlog.app.ui.theme.FitPalette
@@ -296,20 +295,8 @@ fun DaySummaryCard(
             EmptyHint(text = "这一天还没有记录", symbol = null)
         } else {
             Spacer(Modifier.height(14.dp))
+            // 和今日页共用同一段「四圈环 + 四组数值」，这里不再另写餐次分布
             NutritionRingsBody(totals = totals, targets = targets)
-
-            val mealLine = Meal.all.mapNotNull { meal ->
-                val kcal = entries.filter { it.meal == meal.id }.sumOf { it.kcal }.roundToInt()
-                if (kcal > 0) "${meal.label} $kcal" else null
-            }
-            if (mealLine.isNotEmpty()) {
-                Spacer(Modifier.height(12.dp))
-                Text(
-                    mealLine.joinToString(" · "),
-                    style = IosTypography.caption2,
-                    color = colors.tertiaryContent,
-                )
-            }
         }
     }
 }
