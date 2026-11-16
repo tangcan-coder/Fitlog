@@ -22,8 +22,6 @@ import com.fitlog.app.domain.Dates
 import com.fitlog.app.domain.pretty
 import com.fitlog.app.domain.targetsOf
 import com.fitlog.app.domain.totalsOf
-import com.fitlog.app.ui.components.FitListRow
-import com.fitlog.app.ui.components.FitIconButton
 import com.fitlog.app.ui.components.NutritionRingsCard
 import com.fitlog.app.ui.components.TinyAddButton
 import io.github.neoruaa.glasmio.core.GlasmioTheme
@@ -33,6 +31,8 @@ import io.github.neoruaa.glasmio.scaffold.GlasmioPinnedListPage
 import io.github.neoruaa.glasmio.ui.GlasmioButton
 import io.github.neoruaa.glasmio.ui.GlasmioButtonSize
 import io.github.neoruaa.glasmio.ui.GlasmioGroupedList
+import io.github.neoruaa.glasmio.ui.GlasmioIconButton
+import io.github.neoruaa.glasmio.ui.GlasmioListRow
 import kotlin.math.roundToInt
 
 /**
@@ -64,10 +64,10 @@ fun TodayScreen(
         bottomPadding = bottomPadding,
         verticalArrangement = Arrangement.spacedBy(16.dp),
         actions = {
-            FitIconButton(onClick = { onShiftDate(-1) }) {
+            GlasmioIconButton(onClick = { onShiftDate(-1) }) {
                 SfIcon("chevron.left", "前一天", size = 17.dp)
             }
-            FitIconButton(onClick = { onShiftDate(1) }) {
+            GlasmioIconButton(onClick = { onShiftDate(1) }) {
                 SfIcon("chevron.right", "后一天", size = 17.dp)
             }
             if (!isToday) {
@@ -95,14 +95,14 @@ fun TodayScreen(
 
         item(key = "quick-actions") {
             GlasmioGroupedList {
-                FitListRow(
+                GlasmioListRow(
                     "复制昨天的记录",
                     systemName = "doc.on.doc",
                     showTopSeparator = false,
                     onClick = onCopyYesterday,
                 )
                 if (!isToday) {
-                    FitListRow(
+                    GlasmioListRow(
                         "回到今天",
                         systemName = "calendar",
                         onClick = onBackToToday,
@@ -152,7 +152,7 @@ private fun MealSection(
 
         GlasmioGroupedList {
             if (entries.isEmpty()) {
-                FitListRow(
+                GlasmioListRow(
                     title = "添加食物",
                     systemName = "plus",
                     titleColor = colors.secondaryContent,
@@ -162,7 +162,7 @@ private fun MealSection(
                 )
             } else {
                 entries.forEachIndexed { index, entry ->
-                    FitListRow(
+                    GlasmioListRow(
                         title = entry.name,
                         subtitle = "${entry.qty.pretty()}${entry.unit} · 蛋白 ${entry.p.pretty()}g",
                         detail = "${entry.kcal.roundToInt()} kcal",

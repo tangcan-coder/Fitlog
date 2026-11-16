@@ -11,8 +11,6 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -35,7 +33,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -199,7 +196,6 @@ fun CategoryChips(
             Box(
                 Modifier
                     .clip(Capsule())
-                    .observePressScale(0.96f)
                     .background(background)
                     .clickable { onSelect(item) }
                     .padding(horizontal = 14.dp, vertical = 7.dp),
@@ -340,7 +336,6 @@ fun SegmentedRow(
                         .weight(1f)
                         .fillMaxHeight()
                         .clip(Capsule())
-                        .observePressScale(0.97f)
                         .clickable { onSelect(value) },
                     contentAlignment = Alignment.Center,
                 ) {
@@ -378,27 +373,13 @@ fun PrimaryCapsule(
         destructive -> Color.White
         else -> FitPalette.onAccent(colors.isDark)
     }
-    val interaction = remember { MutableInteractionSource() }
-    val pressed by interaction.collectIsPressedAsState()
-    // 主操作反馈要克制：轻微缩小 + 底色压暗一档，不做弹跳
-    val pressedFill by animateColorAsState(
-        targetValue = if (pressed && enabled) fill.copy(alpha = 0.86f) else fill,
-        animationSpec = tween(durationMillis = 90),
-        label = "primaryFill",
-    )
     Box(
         modifier
             .fillMaxWidth()
             .height(height)
             .clip(Capsule())
-            .pressScale(interaction, 0.97f)
-            .background(pressedFill)
-            .clickable(
-                interactionSource = interaction,
-                indication = null,
-                enabled = enabled,
-                onClick = onClick,
-            ),
+            .background(fill)
+            .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Text(text, style = IosTypography.headline, fontWeight = FontWeight(600), color = ink)
@@ -442,7 +423,6 @@ fun TinyAddButton(
         modifier
             .size(28.dp)
             .clip(CircleShape)
-            .observePressScale(0.9f)
             .background(colors.accent.copy(alpha = if (colors.isDark) 0.22f else 0.16f))
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
@@ -491,7 +471,6 @@ private fun StepperButton(
     Box(
         Modifier
             .size(width = 40.dp, height = 34.dp)
-            .observePressScale(0.88f)
             .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {

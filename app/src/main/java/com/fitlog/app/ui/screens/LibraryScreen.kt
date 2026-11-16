@@ -26,8 +26,6 @@ import com.fitlog.app.data.Cats
 import com.fitlog.app.data.Food
 import com.fitlog.app.domain.Pinyin
 import com.fitlog.app.domain.pretty
-import com.fitlog.app.ui.components.FitListRow
-import com.fitlog.app.ui.components.FitIconButton
 import com.fitlog.app.ui.components.CategoryChips
 import com.fitlog.app.ui.components.EmptyHint
 import com.fitlog.app.ui.components.FitSearchField
@@ -41,6 +39,8 @@ import io.github.neoruaa.glasmio.core.systemGray5
 import io.github.neoruaa.glasmio.icons.SfIcon
 import io.github.neoruaa.glasmio.scaffold.GlasmioPinnedListPage
 import io.github.neoruaa.glasmio.ui.GlasmioGroupedList
+import io.github.neoruaa.glasmio.ui.GlasmioIconButton
+import io.github.neoruaa.glasmio.ui.GlasmioListRow
 import io.github.neoruaa.glasmio.ui.glasmioGroupedListBackground
 import kotlin.math.roundToInt
 
@@ -80,7 +80,7 @@ fun LibraryScreen(
         bottomPadding = bottomPadding,
         verticalArrangement = Arrangement.spacedBy(0.dp),
         actions = {
-            FitIconButton(onClick = onNew) {
+            GlasmioIconButton(onClick = onNew) {
                 SfIcon("plus", "新建食物", size = 18.dp)
             }
         },
@@ -125,7 +125,7 @@ fun LibraryScreen(
             }
         } else {
             itemsIndexed(visible, key = { _, food -> food.id }) { index, food ->
-                FitListRow(
+                GlasmioListRow(
                     title = food.name,
                     // 有克数时一并显示，录入时按每 100 g 折算的，用户能顺手核对一遍
                     subtitle = "1${food.unit}" +
@@ -159,7 +159,7 @@ fun LibraryScreen(
             Column(Modifier.padding(top = SectionGap)) {
                 IosSectionHeader("管理")
                 GlasmioGroupedList {
-                    FitListRow(
+                    GlasmioListRow(
                         "批量导入",
                         systemName = "arrow.down.circle",
                         showTopSeparator = false,

@@ -50,7 +50,6 @@ import com.fitlog.app.domain.pretty
 import com.fitlog.app.domain.servingFromPer100g
 import com.fitlog.app.ui.SelectState
 import com.fitlog.app.ui.Sheet
-import com.fitlog.app.ui.components.FitListRow
 import com.fitlog.app.ui.components.CategoryChips
 import com.fitlog.app.ui.components.EmptyHint
 import com.fitlog.app.ui.components.FieldRow
@@ -79,6 +78,7 @@ import io.github.neoruaa.glasmio.ui.GlasmioGroupedList
 import io.github.neoruaa.glasmio.ui.GlasmioSheetButton
 import io.github.neoruaa.glasmio.ui.GlasmioSheetTopToolbar
 import io.github.neoruaa.glasmio.ui.GlasmioTextField
+import io.github.neoruaa.glasmio.ui.GlasmioListRow
 import io.github.neoruaa.glasmio.ui.glasmioGroupedListBackground
 import io.github.neoruaa.glasmio.ui.LocalGlasmioSheetContentPadding
 import kotlin.math.floor
@@ -163,7 +163,7 @@ fun SelectSheet(
                     // 行拆成独立 item，食物很多时也只组合屏幕上的几行。
                     itemsIndexed(visibleFoods, key = { _, food -> food.id }) { index, food ->
                         val count = state.qty[food.id] ?: 0
-                        FitListRow(
+                        GlasmioListRow(
                             title = food.name,
                             subtitle = "1${food.unit} · ${food.kcal.roundToInt()} kcal · " +
                                 "蛋白 ${trimNumber(food.p)}g",
@@ -189,7 +189,7 @@ fun SelectSheet(
                 item(key = "new-food") {
                     Column(Modifier.padding(top = 14.dp)) {
                         GlasmioGroupedList {
-                            FitListRow(
+                            GlasmioListRow(
                                 "没有？新建一个食物",
                                 systemName = "plus",
                                 titleColor = colors.accent,
@@ -483,7 +483,7 @@ fun FoodFormSheet(
                     item(key = "delete") {
                         Column {
                             GlasmioGroupedList {
-                                FitListRow(
+                                GlasmioListRow(
                                     "删除这个食物",
                                     titleColor = colors.destructive,
                                     showTopSeparator = false,
@@ -676,7 +676,7 @@ fun EntrySheet(
             )
 
             GlasmioGroupedList {
-                FitListRow(
+                GlasmioListRow(
                     "删除这条记录",
                     titleColor = colors.destructive,
                     showTopSeparator = false,

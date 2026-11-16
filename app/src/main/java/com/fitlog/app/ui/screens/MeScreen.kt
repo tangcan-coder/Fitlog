@@ -25,7 +25,6 @@ import com.fitlog.app.data.AppData
 import com.fitlog.app.domain.Dates
 import com.fitlog.app.domain.pretty
 import com.fitlog.app.domain.targetsOf
-import com.fitlog.app.ui.components.FitListRow
 import com.fitlog.app.ui.components.IosGroupFooter
 import com.fitlog.app.ui.components.IosSectionHeader
 import com.fitlog.app.ui.components.ValueRow
@@ -37,6 +36,7 @@ import io.github.neoruaa.glasmio.ui.GlasmioAlertButtonRole
 import io.github.neoruaa.glasmio.ui.GlasmioAlertButtonSpec
 import io.github.neoruaa.glasmio.ui.GlasmioAlertDialog
 import io.github.neoruaa.glasmio.ui.GlasmioGroupedList
+import io.github.neoruaa.glasmio.ui.GlasmioListRow
 import java.time.Instant
 import java.time.ZoneId
 
@@ -119,7 +119,7 @@ fun MeScreen(
                     ValueRow("身高体重", "${p.height.pretty()} cm · ${p.weight.pretty()} kg")
                     ValueRow("活动量", ActivityLevels.labelOf(p.activity))
                     ValueRow("目标", goalName)
-                    FitListRow(
+                    GlasmioListRow(
                         "修改资料与目标",
                         titleColor = colors.accent,
                         onClick = onEditProfile,
@@ -135,14 +135,14 @@ fun MeScreen(
                     ValueRow("食物库", "${data.foods.size} 种")
                     ValueRow("记录天数", "${data.logs.count { it.value.isNotEmpty() }} 天")
                     ValueRow("上次备份", lastBackup)
-                    FitListRow(
+                    GlasmioListRow(
                         "导出备份",
                         systemName = "doc.on.doc",
                         onClick = {
                             exportLauncher.launch("fitlog-${Dates.today()}.json")
                         },
                     )
-                    FitListRow(
+                    GlasmioListRow(
                         "导入恢复",
                         systemName = "arrow.down.circle",
                         onClick = {
@@ -169,7 +169,7 @@ fun MeScreen(
 
         item(key = "danger") {
             GlasmioGroupedList {
-                FitListRow(
+                GlasmioListRow(
                     "清空全部数据",
                     titleColor = colors.destructive,
                     showTopSeparator = false,

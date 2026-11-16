@@ -34,7 +34,6 @@ import com.fitlog.app.data.ActivityLevels
 import com.fitlog.app.data.AppData
 import com.fitlog.app.data.Profile
 import com.fitlog.app.domain.targetsOf
-import com.fitlog.app.ui.components.FitListRow
 import com.fitlog.app.ui.components.FieldRow
 import com.fitlog.app.ui.components.IosGroupFooter
 import com.fitlog.app.ui.components.IosSectionHeader
@@ -49,6 +48,7 @@ import io.github.neoruaa.glasmio.ui.GlasmioBottomSheet
 import io.github.neoruaa.glasmio.ui.GlasmioButton
 import io.github.neoruaa.glasmio.ui.GlasmioButtonSize
 import io.github.neoruaa.glasmio.ui.GlasmioGroupedList
+import io.github.neoruaa.glasmio.ui.GlasmioListRow
 import io.github.neoruaa.glasmio.ui.GlasmioSheetButton
 import io.github.neoruaa.glasmio.ui.GlasmioSheetTopToolbar
 import io.github.neoruaa.glasmio.ui.LocalGlasmioSheetContentPadding
@@ -171,7 +171,7 @@ fun ProfileSheet(
                         GlasmioGroupedList {
                             ActivityLevels.list.forEachIndexed { index, level ->
                                 val active = level.value == activity
-                                FitListRow(
+                                GlasmioListRow(
                                     title = level.label,
                                     showTopSeparator = index > 0,
                                     showDisclosure = false,
