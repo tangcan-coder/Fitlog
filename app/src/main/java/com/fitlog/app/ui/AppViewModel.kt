@@ -32,6 +32,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -145,6 +146,17 @@ class AppViewModel(private val repo: AppRepository) : ViewModel() {
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
     val message: StateFlow<ToastMsg?> = _ui.map { it.message }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    /**
+     * 「新建/编辑食物」不再是弹层，而是采样层里的二级页面。
+     *
+     * 这里只暴露一个布尔值：表单每敲一个字都会让 [sheet] 变化，如果界面直接订阅 sheet，
+     * 打字会把底下整页（连同玻璃采样层）一起重组。distinctUntilChanged 之后，
+     * 只有「打开/关闭页面」才会通知界面。
+     */
+    val foodPageOpen: StateFlow<Boolean> = _ui.map { it.sheet is Sheet.FoodForm }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     /** 待落盘份量改动所对应的弹层状态；停手 [QTY_WRITE_DELAY_MS] 毫秒后由 [flushPendingQty] 写掉 */
     private var pendingQty: Sheet.Entry? = null

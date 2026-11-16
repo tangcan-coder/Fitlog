@@ -2,8 +2,12 @@ package com.fitlog.app.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -48,6 +52,7 @@ import com.fitlog.app.ui.screens.LibraryScreen
 import com.fitlog.app.ui.screens.MeScreen
 import com.fitlog.app.ui.screens.StatsScreen
 import com.fitlog.app.ui.screens.TodayScreen
+import com.fitlog.app.ui.sheets.FoodFormSheet
 import com.fitlog.app.ui.sheets.SheetHost
 import com.fitlog.app.ui.theme.FitLogTheme
 import com.kyant.shapes.Capsule
@@ -98,6 +103,8 @@ private fun FitLogContent(vm: AppViewModel, data: AppData) {
     // 这样在弹层里打字不会让整页（和底下的玻璃采样层）跟着重组。
     val tab by vm.tab.collectAsStateWithLifecycle()
     val date by vm.date.collectAsStateWithLifecycle()
+    // 只订阅「食物表单页是否打开」这个布尔值：表单里打字不会牵动页面重组
+    val foodPageOpen by vm.foodPageOpen.collectAsStateWithLifecycle()
 
     // 第一次打开时先把资料填了，否则算不出今天该吃多少。每次启动只自动弹一次。
     var onboardingPrompted by rememberSaveable { mutableStateOf(false) }
@@ -189,9 +196,15 @@ private fun FitLogContent(vm: AppViewModel, data: AppData) {
                         onToast = { vm.toast(it) },
                     )
                 }
+
+                // 新建/编辑食物：盖在标签页上的二级页面（同一个窗口，不是 Dialog）
+                FoodFormPage(vm = vm)
             }
         },
         overlayContent = { backdrop ->
+            if (foodPageOpen) {
+                // 二级页面占满整屏，底栏让位；页面自己的顶栏负责返回/保存
+            } else {
             GlasmioNavigationBar(
                 items = tabs,
                 selectedKey = tab,
@@ -208,6 +221,7 @@ private fun FitLogContent(vm: AppViewModel, data: AppData) {
                     .glasmioNavigationScrollHint(navigationScroll.scrollHintProgress)
                     .navigationBarsPadding(),
             )
+            }
 
             ToastHost(vm = vm, bottomOffset = bottomBarSpace)
             SheetArea(vm = vm, data = data)
@@ -289,4 +303,45 @@ private fun SheetArea(vm: AppViewModel, data: AppData) {
         vm = vm,
         onDismiss = { vm.closeSheet() },
     )
+}
+
+/**
+ * 新建 / 编辑食物的二级页面。
+ *
+ * 和标签页在同一个窗口里，用一次水平推入代替 Dialog：没有窗口创建、没有跨窗口 backdrop 映射，
+ * 表单内容直接复用弹层那套（[FoodFormSheet] 的 pageMode）。
+ */
+@Composable
+private fun FoodFormPage(vm: AppViewModel) {
+    val sheet by vm.sheet.collectAsStateWithLifecycle()
+    val form = sheet as? Sheet.FoodForm
+    // 退场动画期间保留最后一份内容；打字时仍然用实时状态，避免输入被旧值冲回去
+    var lastForm by remember { mutableStateOf<Sheet.FoodForm?>(null) }
+    LaunchedEffect(form) { if (form != null) lastForm = form }
+    val current = form ?: lastForm ?: return
+
+    BackHandler(enabled = form != null) { vm.closeSheet() }
+
+    AnimatedVisibility(
+        visible = form != null,
+        enter = slideInHorizontally(
+            animationSpec = tween(280, easing = FastOutSlowInEasing),
+            initialOffsetX = { it },
+        ) + fadeIn(tween(180)),
+        exit = slideOutHorizontally(
+            animationSpec = tween(220, easing = FastOutSlowInEasing),
+            targetOffsetX = { it },
+        ) + fadeOut(tween(160)),
+    ) {
+        FoodFormSheet(
+            form = current,
+            visible = true,
+            pageMode = true,
+            onDismiss = { vm.closeSheet() },
+            onUpdate = { vm.updateFoodForm(it) },
+            onBasis = { vm.setFoodBasis(it) },
+            onSave = { vm.saveFoodForm() },
+            onDelete = { vm.deleteFood(current.foodId.orEmpty()) },
+        )
+    }
 }

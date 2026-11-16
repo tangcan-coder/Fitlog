@@ -5,14 +5,19 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -58,6 +63,7 @@ import com.fitlog.app.ui.components.SegmentedRow
 import com.fitlog.app.ui.components.groupedRowShape
 import com.fitlog.app.ui.components.StepperPill
 import com.kyant.capsule.ContinuousRoundedRectangle
+import com.kyant.shapes.Capsule
 import io.github.neoruaa.glasmio.core.GlasmioTheme
 import io.github.neoruaa.glasmio.core.IosTypography
 import io.github.neoruaa.glasmio.core.segmentedControlBackground
@@ -258,6 +264,7 @@ fun FoodFormSheet(
     onBasis: (Boolean) -> Unit,
     onSave: () -> Unit,
     onDelete: () -> Unit,
+    pageMode: Boolean = false,
 ) {
     val colors = GlasmioTheme.colors
     val listState = rememberLazyListState()
@@ -290,24 +297,8 @@ fun FoodFormSheet(
         gram,
     )
 
-    GlasmioBottomSheet(
-        visible = visible,
-        onDismissRequest = onDismiss,
-        skipPartiallyExpanded = true,
-        title = title,
-        topBarBlurProgress = edge,
-        topBar = {
-            GlasmioSheetTopToolbar(
-                title = title,
-                navigation = {
-                    GlasmioSheetButton(onClick = onDismiss) { Text("取消") }
-                },
-                actions = {
-                    GlasmioSheetButton(onClick = attemptSave) { Text("保存") }
-                },
-            )
-        },
-    ) {
+    // 弹层和二级页面共用同一份表单内容，区别只在外面这层壳
+    val body: @Composable ColumnScope.() -> Unit = {
         val pad = LocalGlasmioSheetContentPadding.current
         Column(Modifier.fillMaxWidth().weight(1f)) {
             LazyColumn(
@@ -481,6 +472,41 @@ fun FoodFormSheet(
         }
     }
 
+    if (pageMode) {
+        // 二级页面：同一个窗口里的全屏页面，没有 Dialog 窗口创建和跨窗口玻璃采样
+        Column(
+            Modifier
+                .fillMaxSize()
+                .background(colors.groupedBackground)
+                .navigationBarsPadding()
+                .imePadding(),
+        ) {
+            FoodFormPageHeader(title = title, onCancel = onDismiss, onSave = attemptSave)
+            body()
+        }
+    } else {
+        GlasmioBottomSheet(
+            visible = visible,
+            onDismissRequest = onDismiss,
+            skipPartiallyExpanded = true,
+            title = title,
+            topBarBlurProgress = edge,
+            topBar = {
+                GlasmioSheetTopToolbar(
+                    title = title,
+                    navigation = {
+                        GlasmioSheetButton(onClick = onDismiss) { Text("取消") }
+                    },
+                    actions = {
+                        GlasmioSheetButton(onClick = attemptSave) { Text("保存") }
+                    },
+                )
+            },
+        ) {
+            body()
+        }
+    }
+
     GlasmioAlertDialog(
         visible = confirmDelete,
         onDismissRequest = { confirmDelete = false },
@@ -504,6 +530,52 @@ fun FoodFormSheet(
     )
 }
 
+/**
+ * 二级页面顶栏：取消 / 标题 / 保存。
+ *
+ * 原型阶段先用实色顶栏（不采样页面内容），先看「没有 Dialog 窗口」之后的开合手感，
+ * 确认后再决定要不要换成玻璃栏。
+ */
+@Composable
+private fun FoodFormPageHeader(title: String, onCancel: () -> Unit, onSave: () -> Unit) {
+    val colors = GlasmioTheme.colors
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .statusBarsPadding()
+            .height(52.dp)
+            .padding(horizontal = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            "取消",
+            style = IosTypography.body,
+            color = colors.accent,
+            modifier = Modifier
+                .clip(Capsule())
+                .clickable(onClick = onCancel)
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+        )
+        Spacer(Modifier.weight(1f))
+        Text(
+            title,
+            style = IosTypography.headline,
+            fontWeight = FontWeight(600),
+            color = colors.content,
+        )
+        Spacer(Modifier.weight(1f))
+        Text(
+            "保存",
+            style = IosTypography.body,
+            fontWeight = FontWeight(600),
+            color = colors.accent,
+            modifier = Modifier
+                .clip(Capsule())
+                .clickable(onClick = onSave)
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+        )
+    }
+}
 /**
  * 「一份」换算结果的实时预览。
  *

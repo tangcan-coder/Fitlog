@@ -45,6 +45,8 @@ fun SheetHost(
     }
 
     val current = sheet ?: lastSheet ?: return
+    // 新建/编辑食物已经改成采样层里的二级页面（见 FitLogApp.FoodFormPage），不再走弹层
+    if (current is Sheet.FoodForm) return
     // 可见性直接由状态推导：以前还要在 LaunchedEffect 里再翻一次 visible，
     // 打开时会多走一轮「先以不可见组合、再改状态重组」的重组。
     val visible = sheet != null
@@ -66,16 +68,6 @@ fun SheetHost(
                 onQty = vm::changeQty,
                 onCommit = vm::commitSelection,
                 onNewFood = { vm.openNewFood(current.state) },
-            )
-
-            is Sheet.FoodForm -> FoodFormSheet(
-                form = current,
-                visible = visible,
-                onDismiss = onDismiss,
-                onUpdate = { vm.updateFoodForm(it) },
-                onBasis = { vm.setFoodBasis(it) },
-                onSave = { vm.saveFoodForm() },
-                onDelete = { vm.deleteFood(current.foodId.orEmpty()) },
             )
 
             is Sheet.Entry -> EntrySheet(
