@@ -9,15 +9,11 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -63,7 +59,6 @@ import com.fitlog.app.ui.components.SegmentedRow
 import com.fitlog.app.ui.components.groupedRowShape
 import com.fitlog.app.ui.components.StepperPill
 import com.kyant.capsule.ContinuousRoundedRectangle
-import com.kyant.shapes.Capsule
 import io.github.neoruaa.glasmio.core.GlasmioTheme
 import io.github.neoruaa.glasmio.core.IosTypography
 import io.github.neoruaa.glasmio.core.segmentedControlBackground
@@ -96,6 +91,7 @@ fun SelectSheet(
     onQty: (String, Int) -> Unit,
     onCommit: () -> Unit,
     onNewFood: () -> Unit,
+    pageMode: Boolean = false,
 ) {
     val colors = GlasmioTheme.colors
     val listState = rememberLazyListState()
@@ -117,26 +113,8 @@ fun SelectSheet(
         (foods.firstOrNull { it.id == id }?.kcal ?: 0.0) * n
     }.roundToInt()
 
-    GlasmioBottomSheet(
-        visible = visible,
-        onDismissRequest = onDismiss,
-        skipPartiallyExpanded = true,
-        title = "选择食物",
-        topBarBlurProgress = edge,
-        topBar = {
-            GlasmioSheetTopToolbar(
-                title = "$mealLabel · ${Dates.human(state.date)}",
-                navigation = {
-                    GlasmioSheetButton(onClick = onDismiss) { Text("取消") }
-                },
-                actions = {
-                    GlasmioSheetButton(onClick = onCommit, enabled = chosen.isNotEmpty()) {
-                        Text("记录")
-                    }
-                },
-            )
-        },
-    ) {
+    // 弹层和二级页面共用同一份内容，区别只在外面这层壳
+    val body: @Composable ColumnScope.() -> Unit = {
         val pad = LocalGlasmioSheetContentPadding.current
         Column(Modifier.fillMaxWidth().weight(1f)) {
             LazyColumn(
@@ -249,6 +227,41 @@ fun SelectSheet(
                     enabled = chosen.isNotEmpty(),
                 )
             }
+        }
+    }
+
+    if (pageMode) {
+        SheetPageScaffold(
+            title = "$mealLabel · ${Dates.human(state.date)}",
+            onDismiss = onDismiss,
+            actionLabel = "记录",
+            actionEnabled = chosen.isNotEmpty(),
+            onAction = onCommit,
+        ) {
+            body()
+        }
+    } else {
+        GlasmioBottomSheet(
+            visible = visible,
+            onDismissRequest = onDismiss,
+            skipPartiallyExpanded = true,
+            title = "选择食物",
+            topBarBlurProgress = edge,
+            topBar = {
+                GlasmioSheetTopToolbar(
+                    title = "$mealLabel · ${Dates.human(state.date)}",
+                    navigation = {
+                        GlasmioSheetButton(onClick = onDismiss) { Text("取消") }
+                    },
+                    actions = {
+                        GlasmioSheetButton(onClick = onCommit, enabled = chosen.isNotEmpty()) {
+                            Text("记录")
+                        }
+                    },
+                )
+            },
+        ) {
+            body()
         }
     }
 }
@@ -473,15 +486,12 @@ fun FoodFormSheet(
     }
 
     if (pageMode) {
-        // 二级页面：同一个窗口里的全屏页面，没有 Dialog 窗口创建和跨窗口玻璃采样
-        Column(
-            Modifier
-                .fillMaxSize()
-                .background(colors.groupedBackground)
-                .navigationBarsPadding()
-                .imePadding(),
+        SheetPageScaffold(
+            title = title,
+            onDismiss = onDismiss,
+            actionLabel = "保存",
+            onAction = attemptSave,
         ) {
-            FoodFormPageHeader(title = title, onCancel = onDismiss, onSave = attemptSave)
             body()
         }
     } else {
@@ -530,52 +540,6 @@ fun FoodFormSheet(
     )
 }
 
-/**
- * 二级页面顶栏：取消 / 标题 / 保存。
- *
- * 原型阶段先用实色顶栏（不采样页面内容），先看「没有 Dialog 窗口」之后的开合手感，
- * 确认后再决定要不要换成玻璃栏。
- */
-@Composable
-private fun FoodFormPageHeader(title: String, onCancel: () -> Unit, onSave: () -> Unit) {
-    val colors = GlasmioTheme.colors
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .statusBarsPadding()
-            .height(52.dp)
-            .padding(horizontal = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            "取消",
-            style = IosTypography.body,
-            color = colors.accent,
-            modifier = Modifier
-                .clip(Capsule())
-                .clickable(onClick = onCancel)
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-        )
-        Spacer(Modifier.weight(1f))
-        Text(
-            title,
-            style = IosTypography.headline,
-            fontWeight = FontWeight(600),
-            color = colors.content,
-        )
-        Spacer(Modifier.weight(1f))
-        Text(
-            "保存",
-            style = IosTypography.body,
-            fontWeight = FontWeight(600),
-            color = colors.accent,
-            modifier = Modifier
-                .clip(Capsule())
-                .clickable(onClick = onSave)
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-        )
-    }
-}
 /**
  * 「一份」换算结果的实时预览。
  *
@@ -638,25 +602,13 @@ fun EntrySheet(
     onDismiss: () -> Unit,
     onDelta: (Double) -> Unit,
     onDelete: () -> Unit,
+    pageMode: Boolean = false,
 ) {
     val colors = GlasmioTheme.colors
     val kcal = sheet.per.kcal * sheet.qty
     val minQty = sheet.qty <= 0.5
 
-    GlasmioBottomSheet(
-        visible = visible,
-        onDismissRequest = onDismiss,
-        fitContent = true,
-        title = sheet.name,
-        topBar = {
-            GlasmioSheetTopToolbar(
-                title = sheet.name,
-                actions = {
-                    GlasmioSheetButton(onClick = onDismiss) { Text("完成") }
-                },
-            )
-        },
-    ) {
+    val body: @Composable ColumnScope.() -> Unit = {
         val pad = LocalGlasmioSheetContentPadding.current
         Column(
             Modifier
@@ -713,6 +665,33 @@ fun EntrySheet(
             }
         }
     }
+
+    if (pageMode) {
+        SheetPageScaffold(
+            title = sheet.name,
+            onDismiss = onDismiss,
+            backLabel = "返回",
+        ) {
+            body()
+        }
+    } else {
+        GlasmioBottomSheet(
+            visible = visible,
+            onDismissRequest = onDismiss,
+            fitContent = true,
+            title = sheet.name,
+            topBar = {
+                GlasmioSheetTopToolbar(
+                    title = sheet.name,
+                    actions = {
+                        GlasmioSheetButton(onClick = onDismiss) { Text("完成") }
+                    },
+                )
+            },
+        ) {
+            body()
+        }
+    }
 }
 
 @Composable
@@ -746,30 +725,12 @@ fun BatchSheet(
     visible: Boolean,
     onDismiss: () -> Unit,
     onCommit: (String) -> Unit,
+    pageMode: Boolean = false,
 ) {
     val colors = GlasmioTheme.colors
     var text by rememberSaveable { mutableStateOf("") }
 
-    GlasmioBottomSheet(
-        visible = visible,
-        onDismissRequest = onDismiss,
-        fitContent = true,
-        title = "批量导入",
-        topBar = {
-            GlasmioSheetTopToolbar(
-                title = "批量导入",
-                navigation = {
-                    GlasmioSheetButton(onClick = onDismiss) { Text("取消") }
-                },
-                actions = {
-                    GlasmioSheetButton(
-                        onClick = { onCommit(text) },
-                        enabled = text.isNotBlank(),
-                    ) { Text("导入") }
-                },
-            )
-        },
-    ) {
+    val body: @Composable ColumnScope.() -> Unit = {
         val pad = LocalGlasmioSheetContentPadding.current
         Column(
             Modifier
@@ -789,7 +750,8 @@ fun BatchSheet(
                     .fillMaxWidth()
                     .heightIn(min = 200.dp)
                     .clip(ContinuousRoundedRectangle(22.dp))
-                    .background(colors.groupedBackground)
+                    // 页面底色就是 groupedBackground，输入区必须比它亮一档才看得出边界
+                    .background(colors.elevatedBackground)
                     .padding(14.dp),
             ) {
                 // 占位示例放进 decorationBox，避免输入第一个字时输入框被重建。
@@ -816,6 +778,41 @@ fun BatchSheet(
             }
             Spacer(Modifier.height(8.dp))
             IosGroupFooter("导入后分类都默认放在「主食」，可以逐个改。")
+        }
+    }
+
+    if (pageMode) {
+        SheetPageScaffold(
+            title = "批量导入",
+            onDismiss = onDismiss,
+            actionLabel = "导入",
+            actionEnabled = text.isNotBlank(),
+            onAction = { onCommit(text) },
+        ) {
+            body()
+        }
+    } else {
+        GlasmioBottomSheet(
+            visible = visible,
+            onDismissRequest = onDismiss,
+            fitContent = true,
+            title = "批量导入",
+            topBar = {
+                GlasmioSheetTopToolbar(
+                    title = "批量导入",
+                    navigation = {
+                        GlasmioSheetButton(onClick = onDismiss) { Text("取消") }
+                    },
+                    actions = {
+                        GlasmioSheetButton(
+                            onClick = { onCommit(text) },
+                            enabled = text.isNotBlank(),
+                        ) { Text("导入") }
+                    },
+                )
+            },
+        ) {
+            body()
         }
     }
 }

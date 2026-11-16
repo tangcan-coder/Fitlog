@@ -52,8 +52,11 @@ import com.fitlog.app.ui.screens.LibraryScreen
 import com.fitlog.app.ui.screens.MeScreen
 import com.fitlog.app.ui.screens.StatsScreen
 import com.fitlog.app.ui.screens.TodayScreen
+import com.fitlog.app.ui.sheets.BatchSheet
+import com.fitlog.app.ui.sheets.EntrySheet
 import com.fitlog.app.ui.sheets.FoodFormSheet
-import com.fitlog.app.ui.sheets.SheetHost
+import com.fitlog.app.ui.sheets.ProfileSheet
+import com.fitlog.app.ui.sheets.SelectSheet
 import com.fitlog.app.ui.theme.FitLogTheme
 import com.kyant.shapes.Capsule
 import io.github.neoruaa.glasmio.core.GlasmioTheme
@@ -103,8 +106,8 @@ private fun FitLogContent(vm: AppViewModel, data: AppData) {
     // 这样在弹层里打字不会让整页（和底下的玻璃采样层）跟着重组。
     val tab by vm.tab.collectAsStateWithLifecycle()
     val date by vm.date.collectAsStateWithLifecycle()
-    // 只订阅「食物表单页是否打开」这个布尔值：表单里打字不会牵动页面重组
-    val foodPageOpen by vm.foodPageOpen.collectAsStateWithLifecycle()
+    // 只订阅「是否有二级页面打开」这个布尔值：表单里打字不会牵动页面重组
+    val pageOpen by vm.pageOpen.collectAsStateWithLifecycle()
 
     // 第一次打开时先把资料填了，否则算不出今天该吃多少。每次启动只自动弹一次。
     var onboardingPrompted by rememberSaveable { mutableStateOf(false) }
@@ -197,12 +200,13 @@ private fun FitLogContent(vm: AppViewModel, data: AppData) {
                     )
                 }
 
-                // 新建/编辑食物：盖在标签页上的二级页面（同一个窗口，不是 Dialog）
-                FoodFormPage(vm = vm)
+                // 所有弹层（选择食物 / 食物表单 / 记录份量 / 批量导入 / 资料）都改成
+                // 盖在标签页上的二级页面：同一个窗口，没有 Dialog 窗口创建和跨窗口采样
+                SheetPageArea(vm = vm, data = data)
             }
         },
         overlayContent = { backdrop ->
-            if (foodPageOpen) {
+            if (pageOpen) {
                 // 二级页面占满整屏，底栏让位；页面自己的顶栏负责返回/保存
             } else {
             GlasmioNavigationBar(
@@ -224,7 +228,6 @@ private fun FitLogContent(vm: AppViewModel, data: AppData) {
             }
 
             ToastHost(vm = vm, bottomOffset = bottomBarSpace)
-            SheetArea(vm = vm, data = data)
         },
     )
 }
@@ -290,40 +293,24 @@ private fun BoxScope.ToastHost(vm: AppViewModel, bottomOffset: Dp) {
     }
 }
 
-/** 弹层区域：只在弹层状态变化时重组，不牵动页面。 */
+/**
+ * 二级页面区域：所有弹层（选择食物 / 食物表单 / 记录份量 / 批量导入 / 资料）都渲染在这里。
+ *
+ * 和标签页在同一个窗口里，用一次水平推入代替 Dialog：没有窗口创建、没有跨窗口 backdrop 映射。
+ * 各页面自己负责顶栏（[com.fitlog.app.ui.sheets.SheetPageScaffold]），这里只管进出场动画。
+ */
 @Composable
-private fun SheetArea(vm: AppViewModel, data: AppData) {
+private fun SheetPageArea(vm: AppViewModel, data: AppData) {
     val sheet by vm.sheet.collectAsStateWithLifecycle()
+    // 退场动画期间保留最后一份内容；打字时仍然用实时状态，避免输入被旧值冲回去
+    var lastSheet by remember { mutableStateOf<Sheet?>(null) }
+    LaunchedEffect(sheet) { if (sheet != null) lastSheet = sheet }
+    val current = sheet ?: lastSheet ?: return
 
     BackHandler(enabled = sheet != null) { vm.closeSheet() }
 
-    SheetHost(
-        sheet = sheet,
-        data = data,
-        vm = vm,
-        onDismiss = { vm.closeSheet() },
-    )
-}
-
-/**
- * 新建 / 编辑食物的二级页面。
- *
- * 和标签页在同一个窗口里，用一次水平推入代替 Dialog：没有窗口创建、没有跨窗口 backdrop 映射，
- * 表单内容直接复用弹层那套（[FoodFormSheet] 的 pageMode）。
- */
-@Composable
-private fun FoodFormPage(vm: AppViewModel) {
-    val sheet by vm.sheet.collectAsStateWithLifecycle()
-    val form = sheet as? Sheet.FoodForm
-    // 退场动画期间保留最后一份内容；打字时仍然用实时状态，避免输入被旧值冲回去
-    var lastForm by remember { mutableStateOf<Sheet.FoodForm?>(null) }
-    LaunchedEffect(form) { if (form != null) lastForm = form }
-    val current = form ?: lastForm ?: return
-
-    BackHandler(enabled = form != null) { vm.closeSheet() }
-
     AnimatedVisibility(
-        visible = form != null,
+        visible = sheet != null,
         enter = slideInHorizontally(
             animationSpec = tween(280, easing = FastOutSlowInEasing),
             initialOffsetX = { it },
@@ -333,15 +320,55 @@ private fun FoodFormPage(vm: AppViewModel) {
             targetOffsetX = { it },
         ) + fadeOut(tween(160)),
     ) {
-        FoodFormSheet(
-            form = current,
-            visible = true,
-            pageMode = true,
-            onDismiss = { vm.closeSheet() },
-            onUpdate = { vm.updateFoodForm(it) },
-            onBasis = { vm.setFoodBasis(it) },
-            onSave = { vm.saveFoodForm() },
-            onDelete = { vm.deleteFood(current.foodId.orEmpty()) },
-        )
+        when (current) {
+            is Sheet.Select -> SelectSheet(
+                state = current.state,
+                foods = data.foods,
+                visible = true,
+                pageMode = true,
+                onDismiss = { vm.closeSheet() },
+                onQuery = vm::setSelectQuery,
+                onCat = vm::setSelectCat,
+                onQty = vm::changeQty,
+                onCommit = vm::commitSelection,
+                onNewFood = { vm.openNewFood(current.state) },
+            )
+
+            is Sheet.FoodForm -> FoodFormSheet(
+                form = current,
+                visible = true,
+                pageMode = true,
+                onDismiss = { vm.closeSheet() },
+                onUpdate = { vm.updateFoodForm(it) },
+                onBasis = { vm.setFoodBasis(it) },
+                onSave = { vm.saveFoodForm() },
+                onDelete = { vm.deleteFood(current.foodId.orEmpty()) },
+            )
+
+            is Sheet.Entry -> EntrySheet(
+                sheet = current,
+                visible = true,
+                pageMode = true,
+                onDismiss = { vm.closeSheet() },
+                onDelta = { vm.changeEntryQty(it) },
+                onDelete = { vm.deleteEntry(current.date, current.entryId) },
+            )
+
+            Sheet.Batch -> BatchSheet(
+                visible = true,
+                pageMode = true,
+                onDismiss = { vm.closeSheet() },
+                onCommit = { vm.commitBatch(it) },
+            )
+
+            Sheet.Profile -> ProfileSheet(
+                data = data,
+                visible = true,
+                pageMode = true,
+                onDismiss = { vm.closeSheet() },
+                onSave = { vm.saveProfile(it) },
+                onInvalid = { vm.toast(it) },
+            )
+        }
     }
 }

@@ -78,14 +78,14 @@ FitLogTheme {                       // 主题：GlasmioTheme + FitLog 品牌色
     GlasmioIconProvider {           // 图标：SF Symbols 没有字体时回退到 Material
         GlasmioBackdropHost(
             sampledContent = { /* 当前页面：被录制成玻璃的采样源 */ },
-            overlayContent = { /* 玻璃底栏 + 弹层 + Toast */ },
+            overlayContent = { /* 玻璃底栏 + Toast */ },
         )
     }
 }
 ```
 
 关键点是 **「玻璃不能采样到自己」**：页面的普通内容放 `sampledContent`，
-所有玻璃控件（底栏、弹层、Toast）放 `overlayContent`。所以页面内部不要再放
+所有玻璃控件（底栏、Toast）放 `overlayContent`。所以页面内部不要再放
 `GlasmioButton` / `GlassSurface` 这类采样背景的控件，否则会形成反馈环路（画面会糊成一团）。
 
 ### 2. 页面
@@ -100,18 +100,21 @@ FitLogTheme {                       // 主题：GlasmioTheme + FitLog 品牌色
 底部是 `GlasmioNavigationBar`：四个 Tab 的玻璃胶囊 + 选中项的透镜。
 列表向下滚 64dp 后会自动收缩成左下角一个小圆，点一下再展开。
 
-### 3. 弹层
+### 3. 二级页面（原弹层）
 
-- 选择食物 / 新建食物 / 编辑记录 / 批量导入 / 资料：`GlasmioBottomSheet`
-  - 顶部按钮用 `GlasmioSheetTopToolbar` + `GlasmioSheetButton`（玻璃材质，跟着内容滚动做磨砂）
-  - 表单用分组列表 + `FieldRow`，分类用胶囊，二选一用 `SegmentedRow`
+选择食物 / 新建食物 / 编辑记录 / 批量导入 / 资料，五个二级页面都渲染在
+**采样层里**（和标签页同一个窗口），不再用 Dialog：
+
+- 页面外壳是 `ui/sheets/SheetPage.kt` 的 `SheetPageScaffold`：实色顶栏
+  `取消/返回 · 标题 · 保存/导入`，内容区自己滚
+- 表单用分组列表 + `FieldRow`，分类用胶囊，二选一用 `SegmentedRow`
   资料页长这样：
 
-  ![资料与目标](docs/screenshots/profile-light.png)
+  ![资料与目标](docs/screenshots/page-profile-light.png)
 
+- 进出场：水平推入 280ms（`FitLogApp.SheetPageArea`），退场 220ms；页面打开时底栏隐藏
+- 页面在同一个窗口里，所以顶栏**不能用玻璃**（会采样到自己，形成反馈环路），用实色栏
 - 清空数据 / 删除食物 / 导入确认：`GlasmioAlertDialog`（1.2× 缩放进场，和 iOS 一样）
-- 弹层要「关到底」才移出组合树，`ui/sheets/SheetHost.kt` 里专门做了 420ms 的保留，
-  否则退场动画会闪一下。
 
 ### 4. 品牌色与图标
 
@@ -264,7 +267,7 @@ D:\AndroidProjects\FitLog\
         │   │   │   └── BatchImport.kt         批量粘贴解析
         │   │   └── ui\
         │   │       ├── AppViewModel.kt        唯一状态源，所有操作都走这里
-        │   │       ├── FitLogApp.kt           根：主题 + 采样宿主 + 底栏 + 弹层
+        │   │       ├── FitLogApp.kt           根：主题 + 采样宿主 + 底栏 + 二级页面
         │   │       ├── FitIcons.kt            底栏两个自绘图标 + 图标解析器
         │   │       ├── Previews.kt            Studio 组件预览
         │   │       ├── theme\Theme.kt         Glasmio 主题 + FitLog 品牌色
@@ -273,7 +276,7 @@ D:\AndroidProjects\FitLog\
         │   │       │   │                      分段控件、按钮、同心圆环、体重折线
         │   │       │   └── HistoryCalendar.kt 月历 + 选中日期的营养详情
         │   │       ├── screens\               今日 / 食物库 / 统计 / 我的
-        │   │       └── sheets\                弹层容器 + 选择食物 / 食物表单 /
+        │   │       └── sheets\                二级页面外壳 + 选择食物 / 食物表单 /
         │   │                                  记录份量 / 批量导入 / 资料
         │   └── res\                           图标、主题、颜色
         └── test\java\com\fitlog\app\
@@ -287,9 +290,9 @@ D:\AndroidProjects\FitLog\
 - **UI 用 Glasmio，不自己画玻璃。** 液态玻璃的折射、色散、高光、阴影是一整套
   运行时着色器管线（AGSL + RenderEffect），自己实现要写几千行 native 代码，
   还得逐帧对齐 iOS。Glasmio 已经把这套做完了，而且控件、动画、交互一起给了。
-- **页面内容与玻璃分层。** 只有导航栏、工具栏、弹层是玻璃；页面里的卡片用
+- **页面内容与玻璃分层。** 只有导航栏、工具栏是玻璃；页面里的卡片用
   iOS 分组列表的实色底。这不是偷懒——玻璃控件如果采样到自己所在的那一层，
-  反馈环路会让画面糊掉（Glasmio 文档里也明确要求分层）。
+  反馈环路会让画面糊掉（Glasmio 文档里也明确要求分层）。二级页面的顶栏因此是实色的。
 - **没有用 Room。** 这个数据量（几百种食物、几年记录）一份 JSON 完全够，
   换来的是导出、导入、换机迁移都只是读写一个文件，调试时也能直接 `cat` 出来看。
 - **图表还是自己画的。** 柱状图、折线图、四圈同心环都是 `Canvas`，
@@ -333,7 +336,7 @@ AGP 9.0 起内置 Kotlin 支持，**不再需要** `org.jetbrains.kotlin.android
 | 食物库 | 新建/编辑/删除、七个分类、按使用频次排序、按营养表（能量填 kJ、每 100 g）+ 实际克数自动折算、批量粘贴导入（支持 `485kj`）、空库引导建第一个 |
 | 统计 | 月历（每天标出当日热量，可一直往回翻）、点某天看当日详情（与今日页同一套四圈环，不重复列餐次）、体重折线、记体重 |
 | 我的 | 目标与代谢数据、导出/导入备份（导入前先校验是不是 FitLog 备份）、清空数据（带确认弹窗） |
-| 体验 | 深浅色跟随系统、大标题随滚动收起、底栏随滚动收缩、弹层磨砂、键盘弹起时表单自动上移 |
+| 体验 | 深浅色跟随系统、大标题随滚动收起、底栏随滚动收缩、二级页面水平推入、键盘弹起时表单自动上移 |
 
 ### 用起来要知道的三件事
 
@@ -371,7 +374,7 @@ AGP 9.0 起内置 Kotlin 支持，**不再需要** `org.jetbrains.kotlin.android
 
 | 验证项 | 结果 |
 |---|---|
-| 首次启动 | 自动弹出「资料与目标」玻璃弹层；取消后不再反复弹 |
+| 首次启动 | 自动打开「资料与目标」二级页面；取消后不再反复弹 |
 | 四个 Tab | 今日 / 食物库 / 统计 / 我的 都能切，选中胶囊和页面一致 |
 | 大标题收起 | 向上滚动后标题收进工具栏、顶部渐进模糊生效 |
 | 底栏收缩 | 滚动 64dp 后收成左下角小圆，点一下展开 |
@@ -380,10 +383,10 @@ AGP 9.0 起内置 Kotlin 支持，**不再需要** `org.jetbrains.kotlin.android
 | 新建 / 编辑食物 | 分类胶囊、单位、克数、四项营养都能存；删除前有确认弹窗 |
 | 按营养表录入 | 白米饭 能量 485 kJ/100 g × 150 g → 1 份 174 kcal；鸡胸肉 690 kJ + 12/60/3 g × 150 g → 247 kcal；改口径（每 100 g ↔ 每份）时数字跟着换算 |
 | 能量单位 | 表单填 690 kJ，存成 247.4 kcal，再打开回填 690 kJ（取整显示，不抖成 689.9） |
-| 表单校验 | 缺名字 / 缺克数时提示直接写在对应栏下方（弹层是独立窗口，toast 会被盖住） |
+| 表单校验 | 缺名字 / 缺克数时提示直接写在对应栏下方（不依赖 toast，页面里也能看见） |
 | 非法输入 | 能量填 `12.5.3` 保存时红字提示「营养值只能填数字」，不会再静默存成 0 |
 | 删除记录 | 删掉一条后提示条右侧出现「撤销」，几秒内点一下能原位恢复（不是排到最后） |
-| 弹层打开 | 弹层关掉背景采样后，打开前后截图逐像素对比平均差 0.08/255；弹层外观不变，省掉每帧一次全屏采样 + 模糊/折射 |
+| 二级页面打开 | 同条件首帧：新建食物 350 ms（原 Dialog 弹窗 750 ms，其中 layout 467 ms）；选择食物/记录份量/批量导入/资料 全部按页面打开，含键盘弹起 |
 | 跨零点 | 挂后台跨天回来，停在「今天」时自动顺延到新的一天；手动翻到历史日期则保持不动（判断逻辑有单测） |
 | 导入校验 | `{}`、随便一个 JSON 都会被拒绝；只有含 foods/logs/weights/profile/meta 的才允许导入 |
 | 批量导入 | 一行一条粘贴，导入后分类默认「主食」；`326kj` 这类写法按 kJ 换算，裸数字仍按 kcal |
@@ -409,11 +412,11 @@ AGP 9.0 起内置 Kotlin 支持，**不再需要** `org.jetbrains.kotlin.android
 
 **2. 页面里放了玻璃按钮，画面糊成一团。**
 玻璃控件会采样「自己所在的那一层」，形成反馈环路。记住分层：
-页面内容在 `sampledContent`，玻璃控件只在 `overlayContent`（底栏、弹层）。
+页面内容在 `sampledContent`，玻璃控件只在 `overlayContent`（底栏）；二级页面的顶栏因此用实色。
 
-**3. 弹层关掉时闪一下空白。**
-Glasmio 的弹层是独立窗口，退场动画期间必须留在组合树里。
-`SheetHost` 里 `visible = false` 之后 delay 420ms 再移除，别直接 `if (sheet != null)`。
+**3. 二级页面关掉时闪一下空白。**
+退场动画期间内容必须留在组合树里。`SheetPageArea` 用 `lastSheet` 兜底：`sheet` 先变 null
+触发退场，动画走完 `AnimatedVisibility` 才把内容移出，别直接 `if (sheet != null) { ... }`。
 
 **4. 改完代码一片红 `Unresolved reference`。**
 先看 `build.gradle.kts` 里那行 KGP 抬升还在不在（见第七节），
@@ -440,9 +443,9 @@ adb shell uiautomator dump /sdcard/ui.xml
 adb exec-out cat /sdcard/ui.xml
 ```
 
-另外带 `topBar` 的玻璃弹层，顶部按钮不在无障碍树里（`uiautomator` 看不到「取消」「保存」），
-要点它们只能按屏幕坐标。Git Bash 下还要加 `MSYS_NO_PATHCONV=1`，
-否则 `/sdcard/...` 会被改写成 Windows 路径。
+另外 Git Bash 下要加 `MSYS_NO_PATHCONV=1`，否则 `/sdcard/...` 会被改写成 Windows 路径。
+（旧版弹层带 `topBar` 时「取消/保存」不在无障碍树里、只能按坐标点；改成二级页面之后
+这两个按钮是普通文字按钮，`uiautomator` 能直接看到。）
 
 **8. 存档万一读不出来，去哪里找原文？**
 
@@ -457,7 +460,7 @@ adb exec-out run-as com.fitlog.app cat files/quarantine/fitlog-1234567890.json
 也可以 **Device Explorer** 里直接下载。所以就算界面变成空的，数据通常还在。
 
 **9. 输入框里输入 `23`，显示成 `32`？**
-两个坑叠在一起：一是弹层内容不能用「滞后一帧的副本」——`SheetHost` 早期把内容指向
+两个坑叠在一起：一是弹层内容不能用「滞后一帧的副本」——`SheetPageArea` 早期把内容指向
 `LaunchedEffect` 里更新的 `held`，每敲一个字都会先拿旧值重组一帧，输入框被外部值冲回去、
 光标跳回开头，下一个字符就插到了最前面；现在打开时直接用 vm 的实时状态，副本只留给退场动画。
 二是占位符要放进 `BasicTextField` 的 `decorationBox`，不要和输入框做兄弟节点——
@@ -471,11 +474,10 @@ Glasmio 的玻璃材质会缓存当前配方。如果让 Activity 自己消化 `
 `rememberSaveable` 的状态都不会丢）。
 
 **11. 在弹层里点保存，什么都没发生？**
-提示不是没弹，是弹在弹层后面看不见。Glasmio 的底部弹层是**独立窗口**，
-而 Toast 画在 Activity 那一层，弹层打开时前者完全盖住后者——
-`toast("先把名字填上")` 这种校验照样能触发，用户却只看到界面一动不动。
-所以弹层里的校验一律写回表单本身（`FoodFormSheet` 的 `nameError` / `gramError`，
-提示就挂在对应那一栏下面），成功类的提示仍走 Toast（那时弹层已经关了）。
+这条是改页面之前的坑：Glasmio 的底部弹层是**独立窗口**，Toast 画在 Activity 那一层，
+弹层打开时前者完全盖住后者，`toast("先把名字填上")` 照样触发、用户却看到界面一动不动。
+现在表单已经是页面（同窗口），Toast 能看见；但校验仍然写成**表单内联报错**
+（`FoodFormSheet` 的 `nameError` / `gramError`），错误就挂在对应那一栏下面，比飘一下的提示更好找。
 
 **12. 导入一个 `{}` 也能「恢复备份」，结果数据全空了？**
 `AppData` 每个字段都有默认值，所以 `{}` 能正常解析成一份空数据，`decode` 不报错。
@@ -489,12 +491,12 @@ Glasmio 的玻璃材质会缓存当前配方。如果让 Activity 自己消化 `
 1.8 秒延长到 4.2 秒；收起时按 id 精确收起（`consumeMessage(id)`），
 否则动作里弹出的新提示会被一起清掉。
 
-**14. 弹层打开时掉帧，查下来是「看不见的玻璃」？**
-Glasmio 的底部弹层默认按 `LocalGlassAppearance` 画全玻璃：每帧采样背景、模糊、折射。
-但弹层内容区铺的是一层不透明的 `groupedBackground`，把这些效果全盖住了——
-**采样结果根本没显示，成本却照付**，于是弹出动画就掉帧。
-给弹层单独套 `GlassAppearance(reduceTransparency = true)` 即可（`SheetHost` 里做的），
-视觉逐像素对比平均差 0.08/255，导航栏和工具栏的玻璃不受影响。
+**14. 弹层打开时掉帧，最后是「把弹层改成页面」解决的？**
+先用 `FrameMetrics` 量出真相：打开弹窗的第一帧 750 ms，其中 **layout/measure 占 467 ms**，
+之后的动画帧只要十几毫秒——卡在「新建 Dialog 窗口 + 首帧组合/测量」，不是滑入动画本身。
+关掉弹层里那层「看不见的玻璃」只能省一部分，Glasmio 弹层框架自身的地板还有 ~230 ms。
+所以最终把五个弹层都改成**同窗口的二级页面**：没有窗口创建、没有跨窗口采样，
+同条件首帧降到 350 ms，滑动也顺了。
 
 ---
 
@@ -514,12 +516,10 @@ Glasmio 的底部弹层默认按 `LocalGlassAppearance` 画全玻璃：每帧采
    食物很多时也只有屏幕上的几行会被组合/绘制。
 4. **release 包**：`assembleRelease` 现在带 debug 签名可以直接装，`isDebuggable=false`
    让 Compose 走优化后的执行路径，比 debug 包顺得多。
-5. **弹层不再采样背景**：Glasmio 的底部弹层默认是全玻璃——每帧采样背景 + 模糊 + 折射。
-   但我们的弹层内容区铺的是一层不透明的 `groupedBackground`，玻璃被完全盖住，
-   等于每帧白做一次全屏采样。`SheetHost` 给弹层单独套了
-   `GlassAppearance(reduceTransparency = true)`，**只影响弹层**，导航栏和工具栏的玻璃不变。
-   打开前后截图逐像素对比平均差 0.08/255（只剩文字抗锯齿），肉眼无感；
-   顺带第一层弹层打开时也不需要再编译弹层的折射着色器。
+5. **弹层改成二级页面**：`FrameMetrics` 量出来，Dialog 弹窗打开的第一帧 750 ms
+   （layout/measure 467 ms），简单如批量导入也有 467 ms——大头是新建窗口 + 弹层框架的地板。
+   五个弹层现在都渲染在采样层里（`SheetPageArea` + `SheetPageScaffold`），
+   同窗口、无跨窗口采样，首帧降到 ~350 ms；表单内容原样复用，只是外面换了层壳。
 
 **实测**（Medium_Phone_API_37，`-gpu host`，`dumpsys gfxinfo` 中位帧）：
 

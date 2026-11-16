@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -59,6 +60,7 @@ fun ProfileSheet(
     onDismiss: () -> Unit,
     onSave: (Profile) -> Unit,
     onInvalid: (String) -> Unit,
+    pageMode: Boolean = false,
 ) {
     val colors = GlasmioTheme.colors
     val p = data.profile
@@ -98,24 +100,8 @@ fun ProfileSheet(
         }
     }
 
-    GlasmioBottomSheet(
-        visible = visible,
-        onDismissRequest = onDismiss,
-        skipPartiallyExpanded = true,
-        title = "资料与目标",
-        topBarBlurProgress = edge,
-        topBar = {
-            GlasmioSheetTopToolbar(
-                title = "资料与目标",
-                navigation = {
-                    GlasmioSheetButton(onClick = onDismiss) { Text("取消") }
-                },
-                actions = {
-                    GlasmioSheetButton(onClick = save) { Text("保存") }
-                },
-            )
-        },
-    ) {
+    // 弹层和二级页面共用同一份内容，区别只在外面这层壳
+    val body: @Composable ColumnScope.() -> Unit = {
         val pad = LocalGlasmioSheetContentPadding.current
         Column(Modifier.fillMaxWidth().weight(1f)) {
             LazyColumn(
@@ -253,6 +239,38 @@ fun ProfileSheet(
                     }
                 }
             }
+        }
+    }
+
+    if (pageMode) {
+        SheetPageScaffold(
+            title = "资料与目标",
+            onDismiss = onDismiss,
+            actionLabel = "保存",
+            onAction = save,
+        ) {
+            body()
+        }
+    } else {
+        GlasmioBottomSheet(
+            visible = visible,
+            onDismissRequest = onDismiss,
+            skipPartiallyExpanded = true,
+            title = "资料与目标",
+            topBarBlurProgress = edge,
+            topBar = {
+                GlasmioSheetTopToolbar(
+                    title = "资料与目标",
+                    navigation = {
+                        GlasmioSheetButton(onClick = onDismiss) { Text("取消") }
+                    },
+                    actions = {
+                        GlasmioSheetButton(onClick = save) { Text("保存") }
+                    },
+                )
+            },
+        ) {
+            body()
         }
     }
 }

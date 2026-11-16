@@ -148,13 +148,13 @@ class AppViewModel(private val repo: AppRepository) : ViewModel() {
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     /**
-     * 「新建/编辑食物」不再是弹层，而是采样层里的二级页面。
+     * 所有弹层（选择食物 / 食物表单 / 记录份量 / 批量导入 / 资料）都改成了采样层里的二级页面。
      *
      * 这里只暴露一个布尔值：表单每敲一个字都会让 [sheet] 变化，如果界面直接订阅 sheet，
      * 打字会把底下整页（连同玻璃采样层）一起重组。distinctUntilChanged 之后，
      * 只有「打开/关闭页面」才会通知界面。
      */
-    val foodPageOpen: StateFlow<Boolean> = _ui.map { it.sheet is Sheet.FoodForm }
+    val pageOpen: StateFlow<Boolean> = _ui.map { it.sheet != null }
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
