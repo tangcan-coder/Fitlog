@@ -64,7 +64,6 @@ import io.github.neoruaa.glasmio.core.segmentedControlBackground
 import io.github.neoruaa.glasmio.core.systemGray5
 import io.github.neoruaa.glasmio.icons.SfIcon
 import io.github.neoruaa.glasmio.ui.glasmioGroupedListSeparator
-import kotlin.math.abs
 import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.roundToInt

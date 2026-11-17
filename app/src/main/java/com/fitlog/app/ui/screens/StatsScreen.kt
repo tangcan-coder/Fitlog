@@ -33,7 +33,6 @@ import com.fitlog.app.domain.targetsOf
 import com.fitlog.app.ui.components.DaySummaryCard
 import com.fitlog.app.ui.components.EmptyHint
 import com.fitlog.app.ui.components.HistoryCalendarCard
-import com.fitlog.app.ui.components.IosGroupFooter
 import com.fitlog.app.ui.components.IosSectionHeader
 import com.fitlog.app.ui.components.PrimaryCapsule
 import com.fitlog.app.ui.components.WeightLineChart

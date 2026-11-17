@@ -14,7 +14,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.fitlog.app.data.AppData
 import com.fitlog.app.data.LogEntry
 import com.fitlog.app.data.Meal

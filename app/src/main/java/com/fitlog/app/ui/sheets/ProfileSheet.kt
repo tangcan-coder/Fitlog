@@ -35,7 +35,6 @@ import com.fitlog.app.data.AppData
 import com.fitlog.app.data.Profile
 import com.fitlog.app.domain.targetsOf
 import com.fitlog.app.ui.components.FieldRow
-import com.fitlog.app.ui.components.IosGroupFooter
 import com.fitlog.app.ui.components.IosSectionHeader
 import com.fitlog.app.ui.components.SegmentedRow
 import com.kyant.capsule.ContinuousRoundedRectangle

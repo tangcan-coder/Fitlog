@@ -31,7 +31,6 @@ import com.kyant.capsule.ContinuousRoundedRectangle
 import io.github.neoruaa.glasmio.core.GlasmioTheme
 import io.github.neoruaa.glasmio.core.IosTypography
 import io.github.neoruaa.glasmio.core.segmentedControlBackground
-import io.github.neoruaa.glasmio.core.systemGray5
 import io.github.neoruaa.glasmio.icons.SfIcon
 import java.time.LocalDate
 import java.time.YearMonth

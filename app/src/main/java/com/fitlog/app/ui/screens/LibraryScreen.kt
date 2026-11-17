@@ -1,8 +1,6 @@
 package com.fitlog.app.ui.screens
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
@@ -16,33 +14,24 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.fitlog.app.data.Cats
 import com.fitlog.app.data.Food
 import com.fitlog.app.domain.Pinyin
-import com.fitlog.app.domain.pretty
 import com.fitlog.app.ui.components.CategoryChips
 import com.fitlog.app.ui.components.EmptyHint
 import com.fitlog.app.ui.components.FitSearchField
-import com.fitlog.app.ui.components.IosGroupFooter
 import com.fitlog.app.ui.components.IosSectionHeader
 import com.fitlog.app.ui.components.PrimaryCapsule
 import com.fitlog.app.ui.components.groupedRowShape
-import com.kyant.capsule.ContinuousRoundedRectangle
-import io.github.neoruaa.glasmio.core.GlasmioTheme
-import io.github.neoruaa.glasmio.core.systemGray5
 import io.github.neoruaa.glasmio.icons.SfIcon
 import io.github.neoruaa.glasmio.scaffold.GlasmioPinnedListPage
 import io.github.neoruaa.glasmio.ui.GlasmioGroupedList
 import io.github.neoruaa.glasmio.ui.GlasmioIconButton
 import io.github.neoruaa.glasmio.ui.GlasmioListRow
 import io.github.neoruaa.glasmio.ui.glasmioGroupedListBackground
-import kotlin.math.roundToInt
 
 private val SectionGap = 16.dp
 
