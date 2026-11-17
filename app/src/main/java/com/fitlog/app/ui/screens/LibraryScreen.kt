@@ -74,8 +74,7 @@ fun LibraryScreen(
         )
 
     GlasmioPinnedListPage(
-        // 紧凑顶栏保留页面名：有了顶栏的玻璃面，列表上滑时才有东西可采样、能看出模糊
-        title = "食物库",
+        title = "",
         listState = listState,
         bottomPadding = bottomPadding,
         showsLargeTitle = false,
