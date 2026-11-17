@@ -55,6 +55,7 @@ import com.fitlog.app.ui.Sheet
 import com.fitlog.app.ui.components.CategoryChips
 import com.fitlog.app.ui.components.EmptyHint
 import com.fitlog.app.ui.components.FieldRow
+import com.fitlog.app.ui.theme.FitPalette
 import com.fitlog.app.ui.components.FitSearchField
 import com.fitlog.app.ui.components.FoodEmojiBox
 import com.fitlog.app.ui.components.IosGroupFooter
@@ -667,17 +668,43 @@ fun EntrySheet(
                 )
             }
 
-            Text(
-                "约 ${kcal.roundToInt()} kcal · 蛋白 ${trimNumber(sheet.per.p * sheet.qty)}g · " +
-                    "碳水 ${trimNumber(sheet.per.c * sheet.qty)}g · " +
-                    "脂肪 ${trimNumber(sheet.per.fat * sheet.qty)}g",
-                style = IosTypography.subheadline,
-                color = colors.secondaryContent,
-                textAlign = TextAlign.Center,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 20.dp),
-            )
+            // 四项营养各占一张卡片：热量、蛋白、碳水、脂肪，2×2 排布
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                NutrientCard(
+                    label = "热量",
+                    value = "${kcal.roundToInt()} kcal",
+                    tint = colors.accent,
+                    modifier = Modifier.weight(1f),
+                )
+                NutrientCard(
+                    label = "蛋白",
+                    value = "${trimNumber(sheet.per.p * sheet.qty)} g",
+                    tint = FitPalette.protein,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            Spacer(Modifier.height(12.dp))
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                NutrientCard(
+                    label = "碳水",
+                    value = "${trimNumber(sheet.per.c * sheet.qty)} g",
+                    tint = FitPalette.carbs,
+                    modifier = Modifier.weight(1f),
+                )
+                NutrientCard(
+                    label = "脂肪",
+                    value = "${trimNumber(sheet.per.fat * sheet.qty)} g",
+                    tint = FitPalette.fat,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            Spacer(Modifier.height(20.dp))
 
             GlasmioGroupedList {
                 GlasmioListRow(
@@ -900,5 +927,40 @@ private fun pageBody(
         ),
     ) {
         Column(Modifier.fillMaxSize()) { body() }
+    }
+}
+
+/**
+ * 单项营养卡片：记录页把热量/蛋白/碳水/脂肪各做成一张卡，
+ * 比挤在一行文字里更好扫读，也和详情页的分组卡片保持同一种语言。
+ */
+@Composable
+private fun NutrientCard(
+    label: String,
+    value: String,
+    tint: Color,
+    modifier: Modifier = Modifier,
+) {
+    val colors = GlasmioTheme.colors
+    Column(
+        modifier
+            .clip(ContinuousRoundedRectangle(22.dp))
+            .background(colors.elevatedBackground)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+    ) {
+        Text(
+            label,
+            style = IosTypography.footnote,
+            color = colors.secondaryContent,
+            maxLines = 1,
+        )
+        Spacer(Modifier.height(2.dp))
+        Text(
+            value,
+            style = IosTypography.title3,
+            fontWeight = FontWeight(600),
+            color = tint,
+            maxLines = 1,
+        )
     }
 }

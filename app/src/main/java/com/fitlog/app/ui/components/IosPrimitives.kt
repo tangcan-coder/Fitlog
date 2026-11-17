@@ -228,7 +228,8 @@ fun FieldRow(
         modifier
             .fillMaxWidth()
             .height(52.dp)
-            .glasmioGroupedListSeparator(colors.separator, visible = showTopSeparator)
+            // 分隔线两端留白，不贴到卡片圆角上（和列表行保持一致）
+            .glasmioGroupedListSeparator(colors.separator, visible = showTopSeparator, horizontalInset = 16.dp)
             .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -279,7 +280,8 @@ fun ValueRow(
         modifier
             .fillMaxWidth()
             .height(52.dp)
-            .glasmioGroupedListSeparator(colors.separator, visible = showTopSeparator)
+            // 分隔线两端留白，不贴到卡片圆角上（和列表行保持一致）
+            .glasmioGroupedListSeparator(colors.separator, visible = showTopSeparator, horizontalInset = 16.dp)
             .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
