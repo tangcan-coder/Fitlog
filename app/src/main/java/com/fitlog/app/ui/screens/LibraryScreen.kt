@@ -127,11 +127,6 @@ fun LibraryScreen(
             itemsIndexed(visible, key = { _, food -> food.id }) { index, food ->
                 GlasmioListRow(
                     title = food.name,
-                    // 有克数时一并显示，录入时按每 100 g 折算的，用户能顺手核对一遍
-                    subtitle = "1${food.unit}" +
-                        food.gram?.takeIf { it > 0 }?.let { " · ${it.pretty()} g" }.orEmpty() +
-                        " · ${food.kcal.roundToInt()} kcal" +
-                        if (food.uses > 0) " · 用过 ${food.uses} 次" else "",
                     showTopSeparator = index > 0,
                     onClick = { onEdit(food.id) },
                     modifier = Modifier.glasmioGroupedListBackground(
@@ -140,17 +135,7 @@ fun LibraryScreen(
                             isLast = index == visible.lastIndex,
                         ),
                     ),
-                    leading = {
-                        Box(
-                            Modifier
-                                .size(30.dp)
-                                .clip(ContinuousRoundedRectangle(9.dp))
-                                .background(GlasmioTheme.colors.systemGray5),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text(Cats.icon(food.cat), fontSize = 15.sp)
-                        }
-                    },
+                    leading = null,
                 )
             }
         }
@@ -168,6 +153,5 @@ fun LibraryScreen(
                 }
             }
         }
-
     }
 }

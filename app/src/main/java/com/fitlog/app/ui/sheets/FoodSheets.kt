@@ -3,6 +3,8 @@ package com.fitlog.app.ui.sheets
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -624,6 +626,7 @@ fun EntrySheet(
     onDismiss: () -> Unit,
     onDelta: (Double) -> Unit,
     onDelete: () -> Unit,
+    pageMode: Boolean = false,
 ) {
     val colors = GlasmioTheme.colors
     val kcal = sheet.per.kcal * sheet.qty
@@ -687,22 +690,52 @@ fun EntrySheet(
         }
     }
 
-    // 记录份量保持弹窗：只是改一个数字，弹窗比整页更轻
-    GlasmioBottomSheet(
-        visible = visible,
-        onDismissRequest = onDismiss,
-        fitContent = true,
-        title = sheet.name,
-        topBar = {
-            GlasmioSheetTopToolbar(
-                title = sheet.name,
-                actions = {
-                    GlasmioSheetButton(onClick = onDismiss) { Text("完成") }
-                },
-            )
-        },
-    ) {
-        body()
+    if (pageMode) {
+        // 二级页面：弹窗开关会新开一个窗口，底栏要等它关完才回来，翻记录时明显卡一下
+        GlasmioPinnedPage(
+            navigateBackContentDescription = "返回",
+            title = sheet.name,
+            onNavigateBack = onDismiss,
+            actions = {
+                GlasmioButton(onClick = onDismiss, size = GlasmioButtonSize.Small) {
+                    Text("完成")
+                }
+            },
+        ) { padding ->
+            // 整块内容垂直居中：这页只有「份量 + 概览 + 删除」，贴着顶栏反而显得空
+            CompositionLocalProvider(
+                LocalGlasmioSheetContentPadding provides PaddingValues(
+                    top = padding.calculateTopPadding(),
+                    bottom = padding.calculateBottomPadding(),
+                ),
+            ) {
+                Column(
+                    Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    body()
+                }
+            }
+        }
+    } else {
+        GlasmioBottomSheet(
+            visible = visible,
+            onDismissRequest = onDismiss,
+            fitContent = true,
+            title = sheet.name,
+            topBar = {
+                GlasmioSheetTopToolbar(
+                    title = sheet.name,
+                    actions = {
+                        GlasmioSheetButton(onClick = onDismiss) { Text("完成") }
+                    },
+                )
+            },
+        ) {
+            body()
+        }
     }
 }
 

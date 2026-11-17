@@ -131,8 +131,6 @@ private fun MealSection(
                 .padding(start = 4.dp, end = 4.dp, bottom = 7.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(meal.emoji, fontSize = 13.sp)
-            Spacer(Modifier.width(6.dp))
             Text(meal.label, style = IosTypography.footnote, color = colors.secondaryContent)
             Spacer(Modifier.width(8.dp))
             if (mealKcal > 0) {
@@ -156,8 +154,7 @@ private fun MealSection(
                 entries.forEachIndexed { index, entry ->
                     GlasmioListRow(
                         title = entry.name,
-                        subtitle = "${entry.qty.pretty()}${entry.unit} · 蛋白 ${entry.p.pretty()}g",
-                        detail = "${entry.kcal.roundToInt()} kcal",
+                        subtitle = "${entry.qty.pretty()}${entry.unit}",
                         showTopSeparator = index > 0,
                         onClick = { onEntryClick(entry) },
                     )

@@ -96,13 +96,13 @@ enum class Meal(val id: String, val label: String) {
 
 object Cats {
     const val ALL = "全部"
-    val list = listOf("主食", "蛋白", "家常菜", "蔬菜", "水果", "饮品", "零食")
+    val list = listOf("主食", "蛋白", "肉类", "蔬菜", "水果", "饮品", "零食")
     val filters = listOf(ALL) + list
 
     fun icon(cat: String): String = when (cat) {
         "主食" -> "🍚"
         "蛋白" -> "🥚"
-        "家常菜" -> "🍲"
+        "肉类" -> "🍖"
         "蔬菜" -> "🥬"
         "水果" -> "🍎"
         "饮品" -> "☕"

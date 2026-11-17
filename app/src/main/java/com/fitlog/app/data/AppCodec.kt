@@ -28,7 +28,20 @@ object AppCodec {
      */
     fun decode(text: String): AppData? {
         val normalized = text.replace("\"gram\":\"\"", "\"gram\":null")
-        return runCatching { json.decodeFromString(AppData.serializer(), normalized) }.getOrNull()
+        return runCatching { json.decodeFromString(AppData.serializer(), normalized) }
+            .getOrNull()
+            ?.let(::migrateCategories)
+    }
+
+    /**
+     * 分类改名：老存档里的「家常菜」统一迁到「肉类」。
+     * 只改食物自己的分类，不动历史记录（记录里存的是当时算好的营养值）。
+     */
+    private fun migrateCategories(data: AppData): AppData {
+        if (data.foods.none { it.cat == LEGACY_MEAT }) return data
+        return data.copy(
+            foods = data.foods.map { if (it.cat == LEGACY_MEAT) it.copy(cat = "肉类") else it },
+        )
     }
 
     /** 解析失败时退回空数据，避免一条脏数据让应用打不开。 */
@@ -40,6 +53,9 @@ object AppCodec {
      * 直接拿去 replace 就等于把用户所有记录清空了，还提示「已恢复备份」。
      */
     private val BACKUP_KEYS = setOf("foods", "logs", "weights", "profile", "meta")
+
+    /** 分类改名前的旧值：老存档里的「家常菜」自动迁到「肉类」 */
+    private const val LEGACY_MEAT = "家常菜"
 
     /** 导入专用：既解析得动，也确认它确实是一份备份。 */
     fun decodeBackup(text: String): AppData? {
