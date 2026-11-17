@@ -1,14 +1,21 @@
 package com.fitlog.app.data
 
 import android.content.Context
+import android.net.Uri
+import android.provider.DocumentsContract
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.fitlog.app.domain.Dates
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
 import java.io.File
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
 
 private val Context.fitlogStore: DataStore<Preferences> by preferencesDataStore(name = "fitlog")
 
@@ -69,6 +76,46 @@ class AppRepository(context: Context) {
 
     fun parseImport(text: String): AppData? = AppCodec.decodeBackup(text)
 
+    /* ----------------------------- 备份目录 ----------------------------- */
+
+    /** 用户选定的备份目录（SAF tree URI）；null 表示还没设置，导出时走系统文件选择器。 */
+    val backupDir: Flow<String?> = appContext.fitlogStore.data.map { it[BACKUP_DIR_KEY] }
+
+    suspend fun setBackupDir(uri: String?) {
+        appContext.fitlogStore.edit { prefs ->
+            if (uri.isNullOrBlank()) prefs.remove(BACKUP_DIR_KEY) else prefs[BACKUP_DIR_KEY] = uri
+        }
+    }
+
+    /**
+     * 把备份直接写进已设置的目录，不再弹系统文件选择器。
+     * 文件名带时分，同一天导出多次也不会互相覆盖。
+     * 返回写入的文件名；目录失效或没有写权限时返回 null，由界面提示重新设置。
+     */
+    suspend fun writeBackupToDir(text: String, dirUri: String): String? = withContext(Dispatchers.IO) {
+        runCatching {
+            val tree = Uri.parse(dirUri)
+            val parent = DocumentsContract.buildDocumentUriUsingTree(
+                tree,
+                DocumentsContract.getTreeDocumentId(tree),
+            )
+            val name = "fitlog-${Dates.today()}-${backupTimeSuffix()}.json"
+            val doc = DocumentsContract.createDocument(
+                appContext.contentResolver,
+                parent,
+                "application/json",
+                name,
+            ) ?: return@runCatching null
+            appContext.contentResolver.openOutputStream(doc)?.use { out ->
+                out.write(text.toByteArray(Charsets.UTF_8))
+            } ?: return@runCatching null
+            name
+        }.getOrNull()
+    }
+
+    private fun backupTimeSuffix(): String =
+        LocalTime.now().format(DateTimeFormatter.ofPattern("HHmm"))
+
     /**
      * 把解不开的存档原文落到 `files/quarantine/`，只保留最近 3 份。
      * 取回方式（不用 root）：
@@ -92,6 +139,7 @@ class AppRepository(context: Context) {
 
     private companion object {
         val KEY = stringPreferencesKey("data_json")
+        val BACKUP_DIR_KEY = stringPreferencesKey("backup_dir_uri")
         const val MAX_QUARANTINE = 3
     }
 }

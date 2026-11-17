@@ -52,6 +52,9 @@ import com.fitlog.app.ui.screens.LibraryScreen
 import com.fitlog.app.ui.screens.MeScreen
 import com.fitlog.app.ui.screens.StatsScreen
 import com.fitlog.app.ui.screens.TodayScreen
+import com.fitlog.app.ui.sheets.BackupDirPage
+import com.fitlog.app.ui.sheets.SettingsPage
+import com.fitlog.app.ui.sheets.TargetPage
 import com.fitlog.app.ui.sheets.BatchSheet
 import com.fitlog.app.ui.sheets.EntrySheet
 import com.fitlog.app.ui.sheets.FoodFormSheet
@@ -191,12 +194,8 @@ private fun FitLogContent(vm: AppViewModel, data: AppData) {
                         data = data,
                         listState = meList,
                         bottomPadding = bottomBarSpace,
-                        buildExport = { vm.exportText() },
-                        onExportDone = { vm.markBackedUp() },
-                        onImport = { vm.importText(it) },
-                        onEditProfile = { vm.openProfile() },
-                        onClearAll = { vm.clearAll() },
-                        onToast = { vm.toast(it) },
+                        onOpenTarget = { vm.openTarget() },
+                        onOpenSettings = { vm.openSettings() },
                     )
                 }
 
@@ -302,6 +301,7 @@ private fun BoxScope.ToastHost(vm: AppViewModel, bottomOffset: Dp) {
 @Composable
 private fun SheetPageArea(vm: AppViewModel, data: AppData) {
     val sheet by vm.sheet.collectAsStateWithLifecycle()
+    val backupDir by vm.backupDir.collectAsStateWithLifecycle()
     // 退场动画期间保留最后一份内容；打字时仍然用实时状态，避免输入被旧值冲回去
     var lastSheet by remember { mutableStateOf<Sheet?>(null) }
     LaunchedEffect(sheet) { if (sheet != null) lastSheet = sheet }
@@ -368,6 +368,32 @@ private fun SheetPageArea(vm: AppViewModel, data: AppData) {
                 onDismiss = { vm.closeSheet() },
                 onSave = { vm.saveProfile(it) },
                 onInvalid = { vm.toast(it) },
+            )
+
+            Sheet.Target -> TargetPage(
+                data = data,
+                onDismiss = { vm.closeSheet() },
+            )
+
+            Sheet.Settings -> SettingsPage(
+                data = data,
+                backupDir = backupDir,
+                onDismiss = { vm.closeSheet() },
+                onEditProfile = { vm.openProfile() },
+                onBackupDir = { vm.openBackupDir() },
+                onExportToDir = { vm.exportToBackupDir() },
+                buildExport = { vm.exportText() },
+                onExportDone = { vm.markBackedUp() },
+                onImport = { vm.importText(it) },
+                onToast = { vm.toast(it) },
+            )
+
+            Sheet.BackupDir -> BackupDirPage(
+                current = backupDir,
+                onDismiss = { vm.closeSheet() },
+                onPick = { vm.setBackupDir(it) },
+                onClear = { vm.setBackupDir(null) },
+                onToast = { vm.toast(it) },
             )
         }
     }

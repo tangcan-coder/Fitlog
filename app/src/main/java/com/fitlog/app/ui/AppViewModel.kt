@@ -97,6 +97,13 @@ sealed interface Sheet {
 
     data object Batch : Sheet
     data object Profile : Sheet
+
+    /** 「我的」里的两个一级入口 */
+    data object Target : Sheet
+    data object Settings : Sheet
+
+    /** 设置里的三级页面：备份地址 */
+    data object BackupDir : Sheet
 }
 
 data class ToastMsg(
@@ -210,13 +217,21 @@ class AppViewModel(private val repo: AppRepository) : ViewModel() {
         if (_ui.value.message?.id == id) _ui.value = _ui.value.copy(message = null)
     }
 
+    /**
+     * 设置 → 修改资料 / 备份地址 这种「二级进三级」的返回目标。
+     * 只用于这类页面层级；其它流程（选食物、新建食物等）保持原来「关闭即回标签页」的行为。
+     */
+    private var sheetReturn: Sheet? = null
+
     fun closeSheet() {
         // 份量可能有还没落盘的改动，关弹层前先把它写掉，否则最后一次点击会丢
         if (pendingQty != null) {
             qtyJob?.cancel()
             viewModelScope.launch { flushPendingQty() }
         }
-        _ui.value = _ui.value.copy(sheet = null)
+        val back = sheetReturn
+        sheetReturn = null
+        _ui.value = _ui.value.copy(sheet = back)
     }
 
     /* ---------------- 选择食物 ---------------- */
@@ -644,8 +659,54 @@ class AppViewModel(private val repo: AppRepository) : ViewModel() {
         }
     }
 
+    fun openTarget() {
+        _ui.value = _ui.value.copy(sheet = Sheet.Target)
+    }
+
+    fun openSettings() {
+        _ui.value = _ui.value.copy(sheet = Sheet.Settings)
+    }
+
+    /** 设置 → 备份地址设置（三级页面，返回时回到设置） */
+    fun openBackupDir() {
+        sheetReturn = _ui.value.sheet
+        _ui.value = _ui.value.copy(sheet = Sheet.BackupDir)
+    }
+
     fun openProfile() {
+        // 从「设置」进来时，返回要回到设置；从引导页/其它地方进来则直接回标签页
+        val current = _ui.value.sheet
+        sheetReturn = if (current is Sheet.Settings) current else null
         _ui.value = _ui.value.copy(sheet = Sheet.Profile)
+    }
+
+    /** 已设置的备份目录；null 表示没设置，导出时走系统文件选择器。 */
+    val backupDir: StateFlow<String?> = repo.backupDir
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    fun setBackupDir(uri: String?) {
+        viewModelScope.launch { repo.setBackupDir(uri) }
+    }
+
+    /**
+     * 有备份目录时直接写进去，不再弹系统文件选择器。
+     * 目录失效（换手机、删掉文件夹、权限被回收）时提示重新设置。
+     */
+    fun exportToBackupDir() {
+        val dir = backupDir.value
+        if (dir.isNullOrBlank()) {
+            toast("先设置备份地址")
+            return
+        }
+        viewModelScope.launch {
+            val name = repo.writeBackupToDir(repo.exportText(state.value.data), dir)
+            if (name == null) {
+                toast("导出失败，重新选一下备份地址")
+            } else {
+                markBackedUp()
+                toast("已导出 $name")
+            }
+        }
     }
 
     fun saveProfile(profile: Profile) {
@@ -685,12 +746,7 @@ class AppViewModel(private val repo: AppRepository) : ViewModel() {
         }
     }
 
-    fun clearAll() {
-        viewModelScope.launch {
-            repo.replace(AppData(meta = Meta(onboarded = true)))
-            toast("已清空")
-        }
-    }
+
 
     companion object {
         /** 份量改动合并写入的等待时间：短到察觉不出延迟，长到能把连点合成一次写 */
