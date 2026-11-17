@@ -57,11 +57,11 @@ fun TodayScreen(
     val isToday = date == Dates.today()
 
     GlasmioPinnedListPage(
-        title = if (isToday) "今日" else Dates.human(date),
-        // 不是今天时标题已经是日期了，副标题就换成目标，避免两行都写同一个日期。
-        subtitle = if (isToday) dateSubtitle(date) else "目标 ${targets.kcal} kcal",
+        // 只保留紧凑的日期栏：大标题和副标题都去掉，日期放在顶栏里保证翻日期时看得见
+        title = dateSubtitle(date),
         listState = listState,
         bottomPadding = bottomPadding,
+        showsLargeTitle = false,
         verticalArrangement = Arrangement.spacedBy(16.dp),
         actions = {
             GlasmioIconButton(onClick = { onShiftDate(-1) }) {
@@ -111,14 +111,6 @@ fun TodayScreen(
             }
         }
 
-        item(key = "footer") {
-            Text(
-                "点任意一条记录可以改份量；右上角左右箭头切换日期。",
-                style = IosTypography.footnote,
-                color = GlasmioTheme.colors.tertiaryContent,
-                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 2.dp),
-            )
-        }
     }
 }
 

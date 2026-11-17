@@ -347,7 +347,6 @@ private fun SheetPageArea(vm: AppViewModel, data: AppData) {
             is Sheet.Entry -> EntrySheet(
                 sheet = current,
                 visible = true,
-                pageMode = true,
                 onDismiss = { vm.closeSheet() },
                 onDelta = { vm.changeEntryQty(it) },
                 onDelete = { vm.deleteEntry(current.date, current.entryId) },

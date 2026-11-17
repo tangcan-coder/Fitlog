@@ -73,10 +73,10 @@ fun StatsScreen(
     var weightInput by rememberSaveable { mutableStateOf("") }
 
     GlasmioPinnedListPage(
-        title = "统计",
-        subtitle = "翻日查看每天的营养记录",
+        title = "",
         listState = listState,
         bottomPadding = bottomPadding,
+        showsLargeTitle = false,
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item(key = "calendar") {
@@ -189,9 +189,6 @@ fun StatsScreen(
             }
         }
 
-        item(key = "footer") {
-            IosGroupFooter("建议每天早晨空腹、上完厕所后称，看周平均而不是单日。")
-        }
     }
 }
 

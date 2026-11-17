@@ -624,7 +624,6 @@ fun EntrySheet(
     onDismiss: () -> Unit,
     onDelta: (Double) -> Unit,
     onDelete: () -> Unit,
-    pageMode: Boolean = false,
 ) {
     val colors = GlasmioTheme.colors
     val kcal = sheet.per.kcal * sheet.qty
@@ -688,31 +687,22 @@ fun EntrySheet(
         }
     }
 
-    if (pageMode) {
-        GlasmioPinnedPage(
-            navigateBackContentDescription = "返回",
-            title = sheet.name,
-            onNavigateBack = onDismiss,
-        ) { padding ->
-            pageBody(padding = padding, body = body)
-        }
-    } else {
-        GlasmioBottomSheet(
-            visible = visible,
-            onDismissRequest = onDismiss,
-            fitContent = true,
-            title = sheet.name,
-            topBar = {
-                GlasmioSheetTopToolbar(
-                    title = sheet.name,
-                    actions = {
-                        GlasmioSheetButton(onClick = onDismiss) { Text("完成") }
-                    },
-                )
-            },
-        ) {
-            body()
-        }
+    // 记录份量保持弹窗：只是改一个数字，弹窗比整页更轻
+    GlasmioBottomSheet(
+        visible = visible,
+        onDismissRequest = onDismiss,
+        fitContent = true,
+        title = sheet.name,
+        topBar = {
+            GlasmioSheetTopToolbar(
+                title = sheet.name,
+                actions = {
+                    GlasmioSheetButton(onClick = onDismiss) { Text("完成") }
+                },
+            )
+        },
+    ) {
+        body()
     }
 }
 

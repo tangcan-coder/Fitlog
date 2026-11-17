@@ -648,10 +648,10 @@ private fun MacroRings(
     val track = colors.systemGray5
 
     Canvas(modifier) {
-        val stroke = 12.dp.toPx()
+        val stroke = 16.dp.toPx()
         // 圈与圈之间留一点缝：几个值都很小时（比如刚记录一项），
         // 贴在一起的圆头会糊成一块色斑，分开才能看出是四个环。
-        val gap = 3.dp.toPx()
+        val gap = 4.dp.toPx()
         val step = stroke + gap
         val outer = size.minDimension / 2f - stroke / 2f
 

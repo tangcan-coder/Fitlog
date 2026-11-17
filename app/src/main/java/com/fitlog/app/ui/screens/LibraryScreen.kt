@@ -74,10 +74,10 @@ fun LibraryScreen(
         )
 
     GlasmioPinnedListPage(
-        title = "食物库",
-        subtitle = "${foods.size} 种 · 全部由你自己维护",
+        title = "",
         listState = listState,
         bottomPadding = bottomPadding,
+        showsLargeTitle = false,
         verticalArrangement = Arrangement.spacedBy(0.dp),
         actions = {
             GlasmioIconButton(onClick = onNew) {
@@ -169,11 +169,5 @@ fun LibraryScreen(
             }
         }
 
-        item(key = "footer") {
-            Spacer(Modifier.height(10.dp))
-            IosGroupFooter(
-                "点任意一行可以修改份量或删除。批量导入时一行一条，空格或逗号分隔。",
-            )
-        }
     }
 }
