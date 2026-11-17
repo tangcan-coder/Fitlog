@@ -210,8 +210,7 @@ fun ProfileSheet(
                             selected = rateText(rate),
                             onSelect = { v -> rate = v.toDoubleOrNull() ?: 0.5 },
                         )
-                        IosGroupFooter("减脂建议 0.5，增肌建议 0.25。太激进容易掉肌肉。")
-                    }
+                            }
                 }
 
                 item(key = "preview") {

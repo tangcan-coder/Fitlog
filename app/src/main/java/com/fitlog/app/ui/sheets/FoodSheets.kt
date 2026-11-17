@@ -395,14 +395,12 @@ fun FoodFormSheet(
                                 keyboardType = KeyboardType.Decimal,
                             )
                         }
-                        IosGroupFooter(
-                            when {
-                                gramError -> "这一份多少克要填上，营养表就是按它折算的。"
-                                form.per100 -> "营养表上的「每 100 克」乘上这里的克数再除以 100，就是一份的营养。"
-                                else -> "按「份」记录比按克省事，克数只是备注。"
-                            },
-                            color = if (gramError) colors.destructive else Color.Unspecified,
-                        )
+                        if (gramError) {
+                            IosGroupFooter(
+                                "这一份多少克要填上，营养表就是按它折算的。",
+                                color = colors.destructive,
+                            )
+                        }
                     }
                 }
 
@@ -476,9 +474,6 @@ fun FoodFormSheet(
                         if (form.per100) {
                             Spacer(Modifier.height(10.dp))
                             NutritionPreviewCard(form = form, serving = serving, gram = gram)
-                            IosGroupFooter("能量照营养表填 kJ（1 kcal ≈ 4.184 kJ），只能填能量也能保存。")
-                        } else {
-                            IosGroupFooter("按 1$unitLabel 算，能量单位和营养表一致，只填能量也能保存。")
                         }
                     }
                 }
@@ -495,7 +490,6 @@ fun FoodFormSheet(
                                     onClick = { confirmDelete = true },
                                 )
                             }
-                            IosGroupFooter("已经记下的历史不会受影响。")
                         }
                     }
                 }

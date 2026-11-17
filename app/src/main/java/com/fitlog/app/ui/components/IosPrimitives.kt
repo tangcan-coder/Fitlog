@@ -328,7 +328,8 @@ fun SegmentedRow(
                 .width(itemWidth - 4.dp)
                 .fillMaxHeight()
                 .clip(Capsule())
-                .background(colors.elevatedBackground),
+                // 选中块用品牌绿：和主按钮、环形图、勾选同一套强调色
+                .background(colors.accent),
         )
         Row(Modifier.fillMaxSize()) {
             options.forEach { (value, label) ->
@@ -345,7 +346,7 @@ fun SegmentedRow(
                         label,
                         style = IosTypography.subheadline,
                         fontWeight = if (active) FontWeight(600) else FontWeight(400),
-                        color = if (active) colors.content else colors.secondaryContent,
+                        color = if (active) FitPalette.onAccent(colors.isDark) else colors.secondaryContent,
                         maxLines = 1,
                     )
                 }
