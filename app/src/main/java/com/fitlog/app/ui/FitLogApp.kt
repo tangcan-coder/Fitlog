@@ -11,6 +11,7 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -19,6 +20,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -41,6 +43,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -207,22 +210,48 @@ private fun FitLogContent(vm: AppViewModel, data: AppData) {
             if (pageOpen) {
                 // 二级页面占满整屏，底栏让位；页面自己的顶栏负责返回/保存
             } else {
-            GlasmioNavigationBar(
-                items = tabs,
-                selectedKey = tab,
-                onSelected = selectTab,
-                onExpand = expandBar,
-                compactProgress = navigationScroll.compactProgress,
-                compactSize = CompactBottomControlSize,
-                backdrop = backdrop,
-                modifier = Modifier
+            Box(
+                Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp)
                     .padding(bottom = 8.dp)
-                    .glasmioNavigationScrollHint(navigationScroll.scrollHintProgress)
                     .navigationBarsPadding(),
-            )
+            ) {
+                GlasmioNavigationBar(
+                    items = tabs,
+                    selectedKey = tab,
+                    onSelected = selectTab,
+                    onExpand = expandBar,
+                    compactProgress = navigationScroll.compactProgress,
+                    compactSize = CompactBottomControlSize,
+                    backdrop = backdrop,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .glasmioNavigationScrollHint(navigationScroll.scrollHintProgress),
+                )
+
+                // 底栏自己的点击会先做「按压缩放」（选中气泡被压扁成椭圆），
+                // 这里在展开状态用一层等宽透明点击区接管选择：选中仍走同一个
+                // selectedKey，气泡只是平移，不再有按压变形。
+                if (navigationScroll.compactProgress.value < 0.5f) {
+                    Row(Modifier.matchParentSize()) {
+                        tabs.forEach { item ->
+                            Box(
+                                Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                                    // 只接管触摸；读屏仍走底栏自己的带标签项，避免出现两组重复目标
+                                    .clearAndSetSemantics { }
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null,
+                                    ) { selectTab(item.key) },
+                            )
+                        }
+                    }
+                }
+            }
             }
 
             ToastHost(vm = vm, bottomOffset = bottomBarSpace)

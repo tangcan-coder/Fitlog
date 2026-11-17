@@ -14,8 +14,8 @@ android {
         // 液态玻璃本身也依赖 API 31+ 的 RenderEffect / RuntimeShader。
         minSdk = 33
         targetSdk = 37
-        versionCode = 2
-        versionName = "1.1"
+        versionCode = 3
+        versionName = "1.2"
     }
 
     buildTypes {
