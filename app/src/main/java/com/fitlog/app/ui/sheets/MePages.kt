@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -40,7 +39,6 @@ import com.fitlog.app.ui.components.IosGroupFooter
 import com.fitlog.app.ui.components.IosSectionHeader
 import com.fitlog.app.ui.components.PrimaryCapsule
 import com.fitlog.app.ui.components.ValueRow
-import com.fitlog.app.ui.theme.FitPalette
 import io.github.neoruaa.glasmio.core.GlasmioTheme
 import io.github.neoruaa.glasmio.core.IosTypography
 import io.github.neoruaa.glasmio.scaffold.GlasmioPinnedPage
@@ -93,21 +91,9 @@ fun TargetPage(data: AppData, onDismiss: () -> Unit) {
                             detail = "${targets.kcal} kcal",
                             showTopSeparator = false,
                         )
-                        GlasmioListRow(
-                            title = "蛋白",
-                            detail = "${targets.protein} g",
-                            leading = { MacroDot(FitPalette.protein) },
-                        )
-                        GlasmioListRow(
-                            title = "碳水",
-                            detail = "${targets.carbs} g",
-                            leading = { MacroDot(FitPalette.carbs) },
-                        )
-                        GlasmioListRow(
-                            title = "脂肪",
-                            detail = "${targets.fat} g",
-                            leading = { MacroDot(FitPalette.fat) },
-                        )
+                        GlasmioListRow(title = "蛋白", detail = "${targets.protein} g")
+                        GlasmioListRow(title = "碳水", detail = "${targets.carbs} g")
+                        GlasmioListRow(title = "脂肪", detail = "${targets.fat} g")
                     }
                 }
             }
@@ -118,29 +104,18 @@ fun TargetPage(data: AppData, onDismiss: () -> Unit) {
                     GlasmioGroupedList {
                         ValueRow("基础代谢", "${targets.bmr} kcal")
                         ValueRow("总消耗", "${targets.tdee} kcal")
-                        ValueRow("身高体重", "${p.height.pretty()} cm · ${p.weight.pretty()} kg")
+                        ValueRow("身高", "${p.height.pretty()} cm")
+                        ValueRow("体重", "${p.weight.pretty()} kg")
                         ValueRow("活动量", ActivityLevels.labelOf(p.activity))
                         ValueRow("目标", goalName)
                     }
                 }
             }
 
-            item(key = "footer") {
-                IosGroupFooter("要改这些数值，去「设置 → 修改资料与目标」。")
-            }
         }
     }
 }
 
-@Composable
-private fun MacroDot(color: Color) {
-    Box(
-        Modifier
-            .size(10.dp)
-            .clip(CircleShape)
-            .background(color),
-    )
-}
 
 /* ============================ 设置 ============================ */
 
@@ -259,12 +234,6 @@ fun SettingsPage(
                 }
             }
 
-            item(key = "note") {
-                IosGroupFooter(
-                    "数据存在本机的应用私有目录里，卸载应用会一起删掉。" +
-                        "设好备份地址后，每周点一下「导出备份」即可，文件直接写到那个目录。",
-                )
-            }
         }
     }
 

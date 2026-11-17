@@ -191,7 +191,6 @@ private fun FitLogContent(vm: AppViewModel, data: AppData) {
                     )
 
                     Tab.ME -> MeScreen(
-                        data = data,
                         listState = meList,
                         bottomPadding = bottomBarSpace,
                         onOpenTarget = { vm.openTarget() },
