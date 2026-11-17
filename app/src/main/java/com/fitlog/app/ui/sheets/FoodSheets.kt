@@ -238,6 +238,7 @@ fun SelectSheet(
 
     if (pageMode) {
         GlasmioPinnedPage(
+            navigateBackContentDescription = "返回",
             title = "$mealLabel · ${Dates.human(state.date)}",
             onNavigateBack = onDismiss,
             actions = {
@@ -502,6 +503,7 @@ fun FoodFormSheet(
     if (pageMode) {
         // 二级页面：玻璃导航栏 + 返回键 + 操作按钮，内容滚动时顶栏做渐进模糊
         GlasmioPinnedPage(
+            navigateBackContentDescription = "返回",
             title = title,
             onNavigateBack = onDismiss,
             actions = {
@@ -688,6 +690,7 @@ fun EntrySheet(
 
     if (pageMode) {
         GlasmioPinnedPage(
+            navigateBackContentDescription = "返回",
             title = sheet.name,
             onNavigateBack = onDismiss,
         ) { padding ->
@@ -802,6 +805,7 @@ fun BatchSheet(
 
     if (pageMode) {
         GlasmioPinnedPage(
+            navigateBackContentDescription = "返回",
             title = "批量导入",
             onNavigateBack = onDismiss,
             actions = {

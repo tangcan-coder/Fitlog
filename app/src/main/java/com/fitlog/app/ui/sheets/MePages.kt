@@ -74,6 +74,7 @@ fun TargetPage(data: AppData, onDismiss: () -> Unit) {
     val edge = rememberGlasmioHeaderScrollEdge(listState)
 
     GlasmioPinnedPage(
+        navigateBackContentDescription = "返回",
         title = "目标",
         onNavigateBack = onDismiss,
         topBarBlurProgress = edge,
@@ -200,6 +201,7 @@ fun SettingsPage(
     val dirLabel = remember(backupDir) { backupDirLabel(context.contentResolver, backupDir) }
 
     GlasmioPinnedPage(
+        navigateBackContentDescription = "返回",
         title = "设置",
         onNavigateBack = onDismiss,
         topBarBlurProgress = edge,
@@ -331,6 +333,7 @@ fun BackupDirPage(
     }
 
     GlasmioPinnedPage(
+        navigateBackContentDescription = "返回",
         title = "备份地址",
         onNavigateBack = onDismiss,
         topBarBlurProgress = edge,

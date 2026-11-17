@@ -251,6 +251,7 @@ fun ProfileSheet(
     if (pageMode) {
         // 二级页面：玻璃导航栏 + 返回键 + 保存按钮，滚动时顶栏渐进模糊
         GlasmioPinnedPage(
+            navigateBackContentDescription = "返回",
             title = "资料与目标",
             onNavigateBack = onDismiss,
             actions = {
